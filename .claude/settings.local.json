@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(npm install)",
+      "Bash(mongod:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npm start)",
+      "Bash(npm install:*)",
+      "Bash(curl -s \"https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=AIzaSyAnESoyXNN7-4WYF9hl1vFu43ARQVAfyc4\" -H \"Content-Type: application/json\" -d '{\"\"\"\"contents\"\"\"\":[{\"\"\"\"parts\"\"\"\":[{\"\"\"\"text\"\"\"\":\"\"\"\"Say hello\"\"\"\"}]}]}')",
+      "Bash(curl -s \"https://generativelanguage.googleapis.com/v1/models?key=AIzaSyAnESoyXNN7-4WYF9hl1vFu43ARQVAfyc4\")",
+      "Bash(psql:*)",
+      "Bash(npm run build:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
