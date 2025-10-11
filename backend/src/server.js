@@ -47,15 +47,23 @@ const limiter = rateLimit({
 // Apply rate limiting to API routes
 app.use('/api/', limiter);
 
-// Health check endpoint
+// Health check endpoint (Railway uses this)
 app.get('/health', (req, res) => {
-  res.json({
+  res.status(200).json({
     status: 'OK',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    environment: process.env.NODE_ENV
+    environment: process.env.NODE_ENV,
+    services: {
+      supabase: !!process.env.SUPABASE_URL,
+      gemini: !!process.env.GEMINI_API_KEY
+    }
   });
 });
+
+// Alternative health check endpoints
+app.get('/healthcheck', (req, res) => res.status(200).send('OK'));
+app.get('/api/health', (req, res) => res.status(200).json({ status: 'OK' }));
 
 // API Routes
 app.use('/api/auth', authRoutes);
@@ -109,7 +117,8 @@ app.use((err, req, res, next) => {
 
 // Start server
 const PORT = process.env.PORT || 5000;
-const server = app.listen(PORT, () => {
+const HOST = process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost';
+const server = app.listen(PORT, HOST, () => {
   console.log(`
 ╔═══════════════════════════════════════════════════════╗
 ║                                                       ║
@@ -117,7 +126,8 @@ const server = app.listen(PORT, () => {
 ║                                                       ║
 ║  Environment: ${process.env.NODE_ENV || 'development'}                             ║
 ║  Port: ${PORT}                                        ║
-║  API: http://localhost:${PORT}/api                   ║
+║  Host: ${HOST}                                     ║
+║  API: http://${HOST}:${PORT}/api                   ║
 ║                                                       ║
 ╚═══════════════════════════════════════════════════════╝
   `);
