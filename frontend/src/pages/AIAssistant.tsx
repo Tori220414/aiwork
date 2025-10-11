@@ -14,7 +14,7 @@ const AIAssistant: React.FC = () => {
   const features = [
     {
       id: 'extract',
-      title: 'Extract Tasks',
+      title: 'Task Input',
       icon: Sparkles,
       description: 'Paste an email, meeting notes, or any text and AI will extract actionable tasks'
     },
