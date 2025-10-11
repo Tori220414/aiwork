@@ -7,6 +7,7 @@ require('dotenv').config();
 
 const { initializeSupabase } = require('./config/supabase');
 const { initializeGemini } = require('./config/gemini');
+const { initializeStripe } = require('./config/stripe');
 
 // Import routes
 const authRoutes = require('./routes/auth-supabase');
@@ -15,6 +16,7 @@ const aiRoutes = require('./routes/ai');
 const dashboardRoutes = require('./routes/dashboard');
 const workspaceRoutes = require('./routes/workspaces');
 const eventRoutes = require('./routes/events');
+const subscriptionRoutes = require('./routes/subscription');
 
 // Initialize Express app
 const app = express();
@@ -24,6 +26,9 @@ initializeSupabase();
 
 // Initialize Gemini AI
 initializeGemini();
+
+// Initialize Stripe
+initializeStripe();
 
 // Middleware
 app.use(helmet({
@@ -96,6 +101,7 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/workspaces', workspaceRoutes);
 app.use('/api/events', eventRoutes);
+app.use('/api/subscription', subscriptionRoutes);
 
 // Root route
 app.get('/', (req, res) => {

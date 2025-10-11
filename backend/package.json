@@ -29,7 +29,8 @@
     "mongoose": "^8.0.3",
     "morgan": "^1.10.0",
     "node-cron": "^3.0.3",
-    "nodemailer": "^6.9.7"
+    "nodemailer": "^6.9.7",
+    "stripe": "^19.1.0"
   },
   "devDependencies": {
     "jest": "^29.7.0",
