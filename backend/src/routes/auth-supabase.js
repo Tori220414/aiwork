@@ -17,15 +17,21 @@ router.post('/register', async (req, res) => {
 
     const supabase = getSupabase();
     if (!supabase) {
+      console.error('Supabase not initialized');
       return res.status(503).json({ message: 'Database not configured' });
     }
 
     // Check if user exists
-    const { data: existingUser } = await supabase
+    const { data: existingUser, error: checkError } = await supabase
       .from('users')
       .select('id')
       .eq('email', email)
       .single();
+
+    if (checkError && checkError.code !== 'PGRST116') {
+      console.error('Error checking existing user:', checkError);
+      return res.status(500).json({ message: 'Database error: ' + checkError.message });
+    }
 
     if (existingUser) {
       return res.status(400).json({ message: 'User already exists with this email' });
@@ -52,7 +58,11 @@ router.post('/register', async (req, res) => {
 
     if (error) {
       console.error('Registration error:', error);
-      return res.status(500).json({ message: 'Failed to create user' });
+      return res.status(500).json({
+        message: 'Failed to create user',
+        error: error.message,
+        details: error.details || error.hint
+      });
     }
 
     // Remove password from response
