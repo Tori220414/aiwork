@@ -43,7 +43,7 @@ const Register: React.FC = () => {
           <div className="inline-flex items-center justify-center mb-4">
             <img src="/logo.png" alt="Aurora Designs" className="w-64 h-48 object-contain" />
           </div>
-          <p className="text-gray-600 mt-2">Create your account and get started</p>
+          <h1 className="text-3xl font-bold text-gray-900">Aurora Tasks</h1>
         </div>
 
         {/* Register Form */}
