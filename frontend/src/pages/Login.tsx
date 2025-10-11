@@ -28,8 +28,8 @@ const Login: React.FC = () => {
       <div className="max-w-md w-full">
         {/* Logo/Title */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-600 rounded-2xl mb-4">
-            <Bot className="w-8 h-8 text-white" />
+          <div className="inline-flex items-center justify-center mb-4">
+            <img src="/logo.png" alt="AD Logo" className="w-24 h-24 object-contain" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900">AI Task Master</h1>
           <p className="text-gray-600 mt-2">Smart task management powered by Gemini AI</p>
