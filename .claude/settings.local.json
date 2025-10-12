@@ -18,7 +18,9 @@
       "Bash(cat:*)",
       "Bash(test:*)",
       "Bash(railway variables:*)",
-      "Bash(git log:*)"
+      "Bash(git log:*)",
+      "Bash(taskkill:*)",
+      "Bash(git restore:*)"
     ],
     "deny": [],
     "ask": []

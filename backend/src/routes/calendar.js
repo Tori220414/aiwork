@@ -68,6 +68,13 @@ router.post('/outlook/connect', async (req, res) => {
       return res.status(400).json({ message: 'Authorization code is required' });
     }
 
+    // Log environment config (without exposing secrets)
+    console.log('Outlook Config:', {
+      clientId: process.env.OUTLOOK_CLIENT_ID ? 'SET' : 'MISSING',
+      clientSecret: process.env.OUTLOOK_CLIENT_SECRET ? 'SET' : 'MISSING',
+      redirectUri: process.env.OUTLOOK_REDIRECT_URI
+    });
+
     // Exchange code for tokens
     const tokens = await microsoftGraphService.getAccessToken(code);
 

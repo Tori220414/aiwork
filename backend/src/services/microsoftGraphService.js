@@ -36,7 +36,8 @@ class MicrosoftGraphService {
       };
     } catch (error) {
       console.error('Error getting access token:', error.response?.data || error.message);
-      throw new Error('Failed to exchange code for access token');
+      const errorMessage = error.response?.data?.error_description || error.response?.data?.error || error.message;
+      throw new Error(`Failed to exchange code for access token: ${errorMessage}`);
     }
   }
 
