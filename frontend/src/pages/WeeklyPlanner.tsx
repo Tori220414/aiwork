@@ -47,7 +47,11 @@ const WeeklyPlanner: React.FC = () => {
     setIsGenerating(true);
     try {
       const response = await plannerService.generateWeeklyPlan(formatDate(currentWeekStart), syncToOutlook && outlookConnected);
-      setWeeklyPlan(response.plan as WeeklyPlan);
+
+      // The response.plan is typed as DailyPlan | WeeklyPlan, but we know it's WeeklyPlan for this endpoint
+      if (response.plan && 'days' in response.plan) {
+        setWeeklyPlan(response.plan);
+      }
 
       if (response.syncedToOutlook && response.syncedEvents && response.syncedEvents.length > 0) {
         toast.success(`Weekly plan generated and ${response.syncedEvents.length} events synced to Outlook!`, { duration: 5000 });

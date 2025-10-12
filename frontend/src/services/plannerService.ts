@@ -1,30 +1,7 @@
 import api from './api';
+import { DailyPlan, WeeklyPlan } from './aiService';
 
-export interface TimeBlock {
-  startTime: string;
-  endTime: string;
-  taskTitle?: string;
-  taskId?: string;
-  type?: 'task' | 'break';
-  notes?: string;
-}
-
-export interface DailyPlan {
-  date: string;
-  timeBlocks: TimeBlock[];
-  summary?: string;
-  totalTasks?: number;
-}
-
-export interface WeeklyPlan {
-  weekStart: string;
-  weekEnd: string;
-  days: {
-    date: string;
-    dayName: string;
-    plan: DailyPlan;
-  }[];
-}
+export { DailyPlan, WeeklyPlan };
 
 export interface SyncedEvent {
   taskTitle: string;

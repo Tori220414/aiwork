@@ -41,7 +41,11 @@ const DailyPlanner: React.FC = () => {
         formatDate(selectedDate),
         syncToOutlook && outlookConnected
       );
-      setDailyPlan(response.plan as DailyPlan);
+
+      // The response.plan is typed as DailyPlan | WeeklyPlan, but we know it's DailyPlan for this endpoint
+      if (response.plan && !('days' in response.plan)) {
+        setDailyPlan(response.plan);
+      }
 
       if (response.syncedToOutlook && response.syncedEvents && response.syncedEvents.length > 0) {
         toast.success(
