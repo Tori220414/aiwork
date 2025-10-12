@@ -9,18 +9,24 @@ const DailyPlanner: React.FC = () => {
   const [dailyPlan, setDailyPlan] = useState<DailyPlan | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [outlookConnected, setOutlookConnected] = useState(false);
+  const [googleConnected, setGoogleConnected] = useState(false);
   const [syncToOutlook, setSyncToOutlook] = useState(true);
+  const [syncToGoogle, setSyncToGoogle] = useState(true);
 
   useEffect(() => {
-    checkOutlookConnection();
+    checkCalendarConnections();
   }, []);
 
-  const checkOutlookConnection = async () => {
+  const checkCalendarConnections = async () => {
     try {
-      const status = await calendarService.getOutlookStatus();
-      setOutlookConnected(status.connected);
+      const [outlook, google] = await Promise.all([
+        calendarService.getOutlookStatus(),
+        calendarService.getGoogleStatus()
+      ]);
+      setOutlookConnected(outlook.connected);
+      setGoogleConnected(google.connected);
     } catch (error) {
-      console.error('Failed to check Outlook connection:', error);
+      console.error('Failed to check calendar connections:', error);
     }
   };
 
@@ -51,14 +57,16 @@ const DailyPlanner: React.FC = () => {
         setDailyPlan(response.plan);
       }
 
+      let syncMessages = [];
       if (response.syncedToOutlook && response.syncedEvents && response.syncedEvents.length > 0) {
-        toast.success(
-          `Daily plan generated and ${response.syncedEvents.length} events synced to Outlook!`,
-          { duration: 5000 }
-        );
-      } else if (response.syncError) {
-        toast.success('Daily plan generated successfully!');
-        toast.error(`Outlook sync failed: ${response.syncError}`, { duration: 5000 });
+        syncMessages.push(`${response.syncedEvents.length} events synced to Outlook`);
+      }
+      if (response.syncError) {
+        toast.error(`Sync error: ${response.syncError}`, { duration: 5000 });
+      }
+
+      if (syncMessages.length > 0) {
+        toast.success(`Daily plan generated! ${syncMessages.join(', ')}`, { duration: 5000 });
       } else {
         toast.success('Daily plan generated successfully!');
       }
@@ -146,14 +154,38 @@ const DailyPlanner: React.FC = () => {
           {outlookConnected && (
             <div className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <div className="flex items-center">
-                <Cloud className="w-5 h-5 text-blue-600 mr-2" />
-                <span className="text-sm font-medium text-blue-900">Sync to Outlook Calendar</span>
+                <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="none">
+                  <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14H5V7h7v10zm8-4h-7v-2h7v2z" fill="#0078D4"/>
+                </svg>
+                <span className="text-sm font-medium text-blue-900">Sync to Outlook</span>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
                   type="checkbox"
                   checked={syncToOutlook}
                   onChange={(e) => setSyncToOutlook(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+            </div>
+          )}
+          {googleConnected && (
+            <div className="flex items-center justify-between p-3 bg-white border border-gray-300 rounded-lg">
+              <div className="flex items-center">
+                <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+                <span className="text-sm font-medium text-gray-900">Sync to Google Calendar</span>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={syncToGoogle}
+                  onChange={(e) => setSyncToGoogle(e.target.checked)}
                   className="sr-only peer"
                 />
                 <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
@@ -173,7 +205,9 @@ const DailyPlanner: React.FC = () => {
             ) : (
               <>
                 <Sparkles className="w-5 h-5 mr-2" />
-                {syncToOutlook && outlookConnected ? 'Generate & Sync to Outlook' : 'Generate AI Daily Plan'}
+                {(syncToOutlook && outlookConnected) || (syncToGoogle && googleConnected)
+                  ? 'Generate & Sync to Calendar'
+                  : 'Generate AI Daily Plan'}
               </>
             )}
           </button>

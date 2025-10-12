@@ -17,6 +17,12 @@ export interface OutlookAuthConfig {
   scopes: string[];
 }
 
+export interface GoogleAuthConfig {
+  clientId: string;
+  redirectUri: string;
+  scopes: string[];
+}
+
 export const calendarService = {
   /**
    * Get Outlook OAuth URL for authentication
@@ -126,6 +132,99 @@ export const calendarService = {
       return response.data;
     } catch (error: any) {
       throw new Error(error.response?.data?.message || 'Failed to import Outlook events');
+    }
+  },
+
+  // ==================== Google Calendar Methods ====================
+
+  /**
+   * Get Google OAuth URL for authentication
+   */
+  getGoogleAuthUrl(): string {
+    const config: GoogleAuthConfig = {
+      clientId: process.env.REACT_APP_GOOGLE_CLIENT_ID || '',
+      redirectUri: `${window.location.origin}/auth/google/callback`,
+      scopes: [
+        'https://www.googleapis.com/auth/calendar',
+        'https://www.googleapis.com/auth/calendar.events',
+        'https://www.googleapis.com/auth/userinfo.email'
+      ]
+    };
+
+    const params = new URLSearchParams({
+      client_id: config.clientId,
+      response_type: 'code',
+      redirect_uri: config.redirectUri,
+      scope: config.scopes.join(' '),
+      access_type: 'offline',
+      prompt: 'consent'  // Force consent screen to get refresh token
+    });
+
+    return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+  },
+
+  /**
+   * Exchange OAuth code for access token
+   */
+  async connectGoogle(code: string): Promise<{ success: boolean; message: string }> {
+    try {
+      const response = await api.post('/calendar/google/connect', { code });
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.message || 'Failed to connect Google Calendar');
+    }
+  },
+
+  /**
+   * Get Google Calendar connection status
+   */
+  async getGoogleStatus(): Promise<{ connected: boolean; email?: string }> {
+    try {
+      const response = await api.get('/calendar/google/status');
+      return response.data;
+    } catch (error) {
+      return { connected: false };
+    }
+  },
+
+  /**
+   * Disconnect Google Calendar
+   */
+  async disconnectGoogle(): Promise<{ success: boolean }> {
+    try {
+      const response = await api.post('/calendar/google/disconnect');
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.message || 'Failed to disconnect Google Calendar');
+    }
+  },
+
+  /**
+   * Create event in Google Calendar
+   */
+  async createGoogleEvent(event: CalendarEvent): Promise<{ success: boolean; eventId: string }> {
+    try {
+      const response = await api.post('/calendar/google/events', event);
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.message || 'Failed to create Google Calendar event');
+    }
+  },
+
+  /**
+   * Get upcoming Google Calendar events
+   */
+  async getGoogleEvents(startDate?: Date, endDate?: Date): Promise<CalendarEvent[]> {
+    try {
+      const params: any = {};
+      if (startDate) params.startDate = startDate.toISOString();
+      if (endDate) params.endDate = endDate.toISOString();
+
+      const response = await api.get('/calendar/google/events', { params });
+      return response.data.events || [];
+    } catch (error) {
+      console.error('Failed to fetch Google Calendar events:', error);
+      return [];
     }
   }
 };

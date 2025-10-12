@@ -19,6 +19,7 @@ import WeeklyPlanner from './pages/WeeklyPlanner';
 import DailyPlanner from './pages/DailyPlanner';
 import CalendarSettings from './pages/CalendarSettings';
 import OutlookCallback from './pages/OutlookCallback';
+import GoogleCallback from './pages/GoogleCallback';
 
 // Components
 import PrivateRoute from './components/PrivateRoute';
@@ -67,6 +68,7 @@ function App() {
           isAuthenticated ? <Navigate to="/dashboard" /> : <Register />
         } />
         <Route path="/auth/outlook/callback" element={<OutlookCallback />} />
+        <Route path="/auth/google/callback" element={<GoogleCallback />} />
 
         <Route element={<PrivateRoute><Layout /></PrivateRoute>}>
           <Route path="/dashboard" element={<Dashboard />} />
