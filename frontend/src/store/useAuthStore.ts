@@ -67,11 +67,31 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   loadUser: async () => {
-    if (!authService.isAuthenticated()) {
+    const token = authService.getToken();
+    const storedUser = authService.getStoredUser();
+
+    // If no token, don't try to load
+    if (!token) {
+      set({
+        user: null,
+        isAuthenticated: false,
+        isLoading: false
+      });
       return;
     }
 
-    set({ isLoading: true });
+    // If we have a stored user, use it immediately (optimistic)
+    if (storedUser) {
+      set({
+        user: storedUser,
+        isAuthenticated: true,
+        isLoading: false
+      });
+    } else {
+      set({ isLoading: true });
+    }
+
+    // Then verify in background
     try {
       const user = await authService.getCurrentUser();
       set({
@@ -79,13 +99,21 @@ export const useAuthStore = create<AuthState>((set) => ({
         isAuthenticated: true,
         isLoading: false
       });
-    } catch (error) {
-      set({
-        user: null,
-        isAuthenticated: false,
-        isLoading: false
-      });
-      authService.logout();
+      // Update stored user with fresh data
+      localStorage.setItem('user', JSON.stringify(user));
+    } catch (error: any) {
+      // Only logout if it's actually an auth error
+      if (error.response?.status === 401) {
+        set({
+          user: null,
+          isAuthenticated: false,
+          isLoading: false
+        });
+        authService.logout();
+      } else {
+        // For other errors (network, etc), keep the stored user
+        set({ isLoading: false });
+      }
     }
   },
 
