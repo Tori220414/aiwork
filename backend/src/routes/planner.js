@@ -45,7 +45,7 @@ async function ensureValidOutlookToken(user) {
 router.post('/daily/generate-and-sync', async (req, res) => {
   try {
     const userId = req.user.id;
-    const { date, syncToOutlook = true } = req.body;
+    const { date, syncToOutlook = true, timezoneOffset = 0 } = req.body;
 
     // Get user's tasks and preferences
     const supabase = getSupabase();
@@ -83,9 +83,12 @@ router.post('/daily/generate-and-sync', async (req, res) => {
     if (syncToOutlook && user.outlook_connected) {
       try {
         console.log('🔵 Syncing daily plan to Outlook for user:', user.outlook_email);
+        console.log('🔵 Timezone offset:', timezoneOffset, 'minutes');
         const accessToken = await ensureValidOutlookToken(user);
-        const planDate = date ? new Date(date) : new Date();
-        console.log('🔵 Plan has', plan.timeBlocks.length, 'time blocks for date:', planDate);
+
+        // Parse the date in the user's timezone
+        const [year, month, day] = (date || new Date().toISOString().split('T')[0]).split('-').map(Number);
+        console.log('🔵 Plan has', plan.timeBlocks.length, 'time blocks for date:', date);
 
         // Create calendar events for each time block
         for (const block of plan.timeBlocks) {
@@ -95,11 +98,15 @@ router.post('/daily/generate-and-sync', async (req, res) => {
           const [startHour, startMin] = block.startTime.split(':');
           const [endHour, endMin] = block.endTime.split(':');
 
-          const startTime = new Date(planDate);
-          startTime.setHours(parseInt(startHour), parseInt(startMin), 0);
+          // Create Date in UTC, then adjust for user's timezone
+          // timezoneOffset is negative for timezones ahead of UTC (e.g., -600 for UTC+10)
+          const startTime = new Date(Date.UTC(year, month - 1, day, parseInt(startHour), parseInt(startMin), 0));
+          startTime.setMinutes(startTime.getMinutes() + timezoneOffset);
 
-          const endTime = new Date(planDate);
-          endTime.setHours(parseInt(endHour), parseInt(endMin), 0);
+          const endTime = new Date(Date.UTC(year, month - 1, day, parseInt(endHour), parseInt(endMin), 0));
+          endTime.setMinutes(endTime.getMinutes() + timezoneOffset);
+
+          console.log('🔵 Event times (UTC):', startTime.toISOString(), '-', endTime.toISOString());
 
           const event = {
             title: `[Plan] ${block.taskTitle}`,
@@ -161,7 +168,7 @@ router.post('/daily/generate-and-sync', async (req, res) => {
 router.post('/weekly/generate-and-sync', async (req, res) => {
   try {
     const userId = req.user.id;
-    const { weekStart, syncToOutlook = true } = req.body;
+    const { weekStart, syncToOutlook = true, timezoneOffset = 0 } = req.body;
 
     // Get user's tasks and preferences
     const supabase = getSupabase();
@@ -200,13 +207,14 @@ router.post('/weekly/generate-and-sync', async (req, res) => {
     if (syncToOutlook && user.outlook_connected) {
       try {
         console.log('🔵 Syncing weekly plan to Outlook for user:', user.outlook_email);
+        console.log('🔵 Timezone offset:', timezoneOffset, 'minutes');
         const accessToken = await ensureValidOutlookToken(user);
         console.log('🔵 Weekly plan has', plan.days.length, 'days');
 
         // Create calendar events for each day's time blocks
         for (const day of plan.days) {
-          const dayDate = new Date(day.date);
-          console.log('🔵 Processing day:', day.dayName, dayDate);
+          const [year, month, dayNum] = day.date.split('-').map(Number);
+          console.log('🔵 Processing day:', day.dayName, day.date);
 
           for (const block of day.plan.timeBlocks) {
             if (block.type === 'break' || !block.taskTitle) continue;
@@ -214,11 +222,12 @@ router.post('/weekly/generate-and-sync', async (req, res) => {
             const [startHour, startMin] = block.startTime.split(':');
             const [endHour, endMin] = block.endTime.split(':');
 
-            const startTime = new Date(dayDate);
-            startTime.setHours(parseInt(startHour), parseInt(startMin), 0);
+            // Create Date in UTC, then adjust for user's timezone
+            const startTime = new Date(Date.UTC(year, month - 1, dayNum, parseInt(startHour), parseInt(startMin), 0));
+            startTime.setMinutes(startTime.getMinutes() + timezoneOffset);
 
-            const endTime = new Date(dayDate);
-            endTime.setHours(parseInt(endHour), parseInt(endMin), 0);
+            const endTime = new Date(Date.UTC(year, month - 1, dayNum, parseInt(endHour), parseInt(endMin), 0));
+            endTime.setMinutes(endTime.getMinutes() + timezoneOffset);
 
             const event = {
               title: `[${day.dayName}] ${block.taskTitle}`,

@@ -26,9 +26,13 @@ export const plannerService = {
    */
   async generateDailyPlan(date?: string, syncToOutlook = true): Promise<PlanResponse> {
     try {
+      // Get timezone offset in minutes (e.g., -600 for Sydney AEST = UTC+10)
+      const timezoneOffset = new Date().getTimezoneOffset();
+
       const response = await api.post('/planner/daily/generate-and-sync', {
         date,
-        syncToOutlook
+        syncToOutlook,
+        timezoneOffset
       });
       return response.data;
     } catch (error: any) {
@@ -41,9 +45,13 @@ export const plannerService = {
    */
   async generateWeeklyPlan(weekStart?: string, syncToOutlook = true): Promise<PlanResponse> {
     try {
+      // Get timezone offset in minutes (e.g., -600 for Sydney AEST = UTC+10)
+      const timezoneOffset = new Date().getTimezoneOffset();
+
       const response = await api.post('/planner/weekly/generate-and-sync', {
         weekStart,
-        syncToOutlook
+        syncToOutlook,
+        timezoneOffset
       });
       return response.data;
     } catch (error: any) {
