@@ -50,7 +50,8 @@ const OutlookCallback: React.FC = () => {
 
         if (response.success) {
           setStatus('success');
-          setMessage(`Successfully connected to ${response.email}`);
+          const emailMsg = (response as any).email ? ` to ${(response as any).email}` : '';
+          setMessage(`Successfully connected${emailMsg}`);
           toast.success('Outlook calendar connected!');
 
           // Redirect to calendar page after 2 seconds
