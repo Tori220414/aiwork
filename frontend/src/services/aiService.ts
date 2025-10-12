@@ -52,6 +52,20 @@ export interface TaskSuggestion {
   reasoning: string;
 }
 
+export interface WeeklyPlan {
+  summary: string;
+  days: Array<{
+    date: string;
+    dayName: string;
+    plan: DailyPlan;
+    tasksCount: number;
+  }>;
+  totalTasks: number;
+  totalEstimatedHours: number;
+  weeklyGoals: string[];
+  balanceScore: number;
+}
+
 export const aiService = {
   async extractTasksFromText(text: string): Promise<{ message: string; tasks: Task[] }> {
     const response = await api.post('/ai/extract-tasks', { text });
@@ -65,6 +79,11 @@ export const aiService = {
 
   async generateDailyPlan(date?: string): Promise<{ date: Date; plan: DailyPlan; tasksIncluded: number }> {
     const response = await api.post('/ai/daily-plan', { date });
+    return response.data;
+  },
+
+  async generateWeeklyPlan(startDate?: string): Promise<{ weekStart: Date; weekEnd: Date; plan: WeeklyPlan }> {
+    const response = await api.post('/ai/weekly-plan', { startDate });
     return response.data;
   },
 

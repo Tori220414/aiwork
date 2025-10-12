@@ -232,6 +232,16 @@ const Tasks: React.FC = () => {
                       <span className="text-xs px-2 py-1 rounded bg-purple-100 text-purple-700">
                         {task.category}
                       </span>
+                      {task.scheduleType && task.scheduleType !== 'once' && (
+                        <span className="text-xs px-2 py-1 rounded bg-indigo-100 text-indigo-700 border border-indigo-200">
+                          🔄 {task.scheduleType}
+                        </span>
+                      )}
+                      {task.recurrence && (
+                        <span className="text-xs px-2 py-1 rounded bg-cyan-100 text-cyan-700 border border-cyan-200">
+                          ♻️ Repeats {task.recurrence.type}
+                        </span>
+                      )}
                       {task.dueDate && (
                         <span className="text-xs text-gray-600">
                           Due: {new Date(task.dueDate).toLocaleDateString()}

@@ -13,6 +13,8 @@ import Workspaces from './pages/Workspaces';
 import WorkspaceDetail from './pages/WorkspaceDetail';
 import Billing from './pages/Billing';
 import BrainDump from './pages/BrainDump';
+import Profile from './pages/Profile';
+import WeeklyPlanner from './pages/WeeklyPlanner';
 
 // Components
 import PrivateRoute from './components/PrivateRoute';
@@ -64,9 +66,11 @@ function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/tasks" element={<Tasks />} />
           <Route path="/brain-dump" element={<BrainDump />} />
+          <Route path="/weekly-planner" element={<WeeklyPlanner />} />
           <Route path="/ai-assistant" element={<AIAssistant />} />
           <Route path="/workspaces" element={<Workspaces />} />
           <Route path="/workspaces/:id" element={<WorkspaceDetail />} />
+          <Route path="/profile" element={<Profile />} />
           <Route path="/billing" element={<Billing />} />
         </Route>
 

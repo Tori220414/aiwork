@@ -6,13 +6,15 @@ import {
   LayoutDashboard,
   CheckSquare,
   Brain,
+  CalendarDays,
   Bot,
   Layers,
   LogOut,
   Menu,
   X,
   User,
-  CreditCard
+  CreditCard,
+  Settings
 } from 'lucide-react';
 
 const Layout: React.FC = () => {
@@ -24,8 +26,10 @@ const Layout: React.FC = () => {
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Tasks', href: '/tasks', icon: CheckSquare },
     { name: 'Brain Dump', href: '/brain-dump', icon: Brain },
+    { name: 'Weekly Planner', href: '/weekly-planner', icon: CalendarDays },
     { name: 'AI Assistant', href: '/ai-assistant', icon: Bot },
     { name: 'Workspaces', href: '/workspaces', icon: Layers },
+    { name: 'Profile', href: '/profile', icon: Settings },
     { name: 'Billing', href: '/billing', icon: CreditCard },
   ];
 

@@ -315,6 +315,74 @@ router.post('/meeting-prep', async (req, res) => {
   }
 });
 
+// @route   POST /api/ai/weekly-plan
+// @desc    Generate weekly plan using AI
+// @access  Private
+router.post('/weekly-plan', async (req, res) => {
+  try {
+    const { startDate } = req.body;
+    const userId = req.user._id || req.user.id;
+    const supabase = getSupabase();
+
+    if (!supabase) {
+      return res.status(503).json({ message: 'Database not configured' });
+    }
+
+    // Calculate week start and end dates
+    const weekStart = startDate ? new Date(startDate) : new Date();
+    weekStart.setHours(0, 0, 0, 0);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 7);
+
+    // Get tasks for the week
+    const { data: tasks, error } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('user_id', userId)
+      .neq('status', 'completed')
+      .or(`due_date.gte.${weekStart.toISOString()},due_date.is.null,due_date.lt.${weekStart.toISOString()}`)
+      .order('priority_score', { ascending: false })
+      .limit(50);
+
+    if (error) {
+      console.error('Weekly plan fetch error:', error);
+      return res.status(500).json({ message: 'Error fetching tasks' });
+    }
+
+    // Convert snake_case to camelCase for AI service
+    const tasksForAI = (tasks || []).map(t => ({
+      ...t,
+      _id: t.id,
+      dueDate: t.due_date,
+      priorityScore: t.priority_score,
+      estimatedTime: t.estimated_time,
+      scheduleType: t.schedule_type
+    }));
+
+    // Get user preferences
+    const { data: user } = await supabase
+      .from('users')
+      .select('preferences')
+      .eq('id', userId)
+      .single();
+
+    const weeklyPlan = await geminiService.generateWeeklyPlan(
+      tasksForAI,
+      user?.preferences || {},
+      weekStart
+    );
+
+    res.json({
+      weekStart,
+      weekEnd,
+      plan: weeklyPlan
+    });
+  } catch (error) {
+    console.error('Weekly plan error:', error);
+    res.status(500).json({ message: 'Failed to generate weekly plan', error: error.message });
+  }
+});
+
 // @route   POST /api/ai/suggest-tasks
 // @desc    Get AI task suggestions
 // @access  Private

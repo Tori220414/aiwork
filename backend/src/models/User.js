@@ -32,11 +32,33 @@ const userSchema = new mongoose.Schema({
     default: ''
   },
   preferences: {
-    workingHours: {
-      start: { type: String, default: '09:00' },
-      end: { type: String, default: '17:00' }
+    workType: {
+      type: String,
+      enum: ['office', 'remote', 'hybrid', 'freelance', 'student', 'other'],
+      default: 'office'
     },
+    workHoursPerDay: { type: Number, default: 8 },
+    workDaysPerWeek: { type: Number, default: 5 },
+    workStartTime: { type: String, default: '09:00' },
+    workEndTime: { type: String, default: '17:00' },
     timezone: { type: String, default: 'UTC' },
+    breakDuration: { type: Number, default: 60 },
+    preferredTaskDuration: { type: Number, default: 30 },
+    deepWorkPreference: {
+      type: String,
+      enum: ['morning', 'afternoon', 'evening', 'flexible'],
+      default: 'morning'
+    },
+    weekStartsOn: {
+      type: String,
+      enum: ['monday', 'sunday'],
+      default: 'monday'
+    },
+    defaultTaskView: {
+      type: String,
+      enum: ['daily', 'weekly', 'monthly'],
+      default: 'daily'
+    },
     notifications: {
       email: { type: Boolean, default: true },
       push: { type: Boolean, default: true },

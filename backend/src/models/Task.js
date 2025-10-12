@@ -93,14 +93,19 @@ const taskSchema = new mongoose.Schema({
     time: Date,
     sent: { type: Boolean, default: false }
   },
+  scheduleType: {
+    type: String,
+    enum: ['once', 'daily', 'weekly', 'monthly'],
+    default: 'once'
+  },
   recurrence: {
-    enabled: { type: Boolean, default: false },
-    frequency: {
+    type: {
       type: String,
-      enum: ['daily', 'weekly', 'monthly', 'yearly']
+      enum: ['daily', 'weekly', 'monthly', 'custom']
     },
-    interval: Number,
-    endDate: Date
+    interval: { type: Number, default: 1 },
+    daysOfWeek: [Number],
+    endsOn: Date
   },
   attachments: [{
     filename: String,

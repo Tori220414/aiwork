@@ -20,6 +20,13 @@ export interface Task {
     completed: boolean;
     completedAt?: Date;
   }>;
+  recurrence?: {
+    type: 'daily' | 'weekly' | 'monthly' | 'custom';
+    interval: number;
+    daysOfWeek?: number[];
+    endsOn?: Date | string;
+  };
+  scheduleType?: 'daily' | 'weekly' | 'monthly' | 'once';
   aiGenerated?: boolean;
   aiInsights?: {
     priorityReason?: string;
