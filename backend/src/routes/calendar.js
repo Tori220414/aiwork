@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { getSupabase } = require('../config/supabase');
 const microsoftGraphService = require('../services/microsoftGraphService');
+const googleCalendarService = require('../services/googleCalendarService');
 const { protect } = require('../middleware/auth-supabase');
 
 // Apply authentication middleware to all calendar routes
@@ -389,6 +390,230 @@ router.post('/outlook/import', async (req, res) => {
     console.error('Error importing Outlook events:', error);
     res.status(500).json({
       message: error.message || 'Failed to import Outlook events'
+    });
+  }
+});
+
+// ================ GOOGLE CALENDAR ROUTES ================
+
+/**
+ * Helper function to ensure valid Google access token
+ */
+async function ensureValidGoogleAccessToken(user) {
+  const now = new Date();
+  const expiresAt = user.google_token_expires_at ? new Date(user.google_token_expires_at) : null;
+
+  if (!expiresAt || expiresAt <= new Date(now.getTime() + 5 * 60 * 1000)) {
+    if (!user.google_refresh_token) {
+      throw new Error('Refresh token not available. Please reconnect your Google account.');
+    }
+
+    const tokens = await googleCalendarService.refreshAccessToken(user.google_refresh_token);
+
+    const supabase = getSupabase();
+    const newExpiresAt = new Date(Date.now() + tokens.expiresIn * 1000);
+    await supabase
+      .from('users')
+      .update({
+        google_access_token: tokens.accessToken,
+        google_refresh_token: tokens.refreshToken,
+        google_token_expires_at: newExpiresAt.toISOString()
+      })
+      .eq('id', user.id);
+
+    return tokens.accessToken;
+  }
+
+  return user.google_access_token;
+}
+
+/**
+ * Connect Google Calendar - Exchange code for tokens
+ */
+router.post('/google/connect', async (req, res) => {
+  try {
+    const { code } = req.body;
+    const userId = req.user.id;
+
+    if (!code) {
+      return res.status(400).json({ message: 'Authorization code is required' });
+    }
+
+    console.log('Google Config:', {
+      clientId: process.env.GOOGLE_CLIENT_ID ? 'SET' : 'MISSING',
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET ? 'SET' : 'MISSING',
+      redirectUri: process.env.GOOGLE_REDIRECT_URI
+    });
+
+    // Exchange code for tokens
+    const tokens = await googleCalendarService.getAccessToken(code);
+
+    // Get user profile from Google
+    const profile = await googleCalendarService.getUserProfile(tokens.accessToken);
+
+    // Calculate token expiration
+    const expiresAt = new Date(Date.now() + tokens.expiresIn * 1000);
+
+    // Update user with calendar integration data
+    const supabase = getSupabase();
+    const { error } = await supabase
+      .from('users')
+      .update({
+        google_connected: true,
+        google_email: profile.email,
+        google_access_token: tokens.accessToken,
+        google_refresh_token: tokens.refreshToken,
+        google_token_expires_at: expiresAt.toISOString(),
+        google_last_synced_at: new Date().toISOString()
+      })
+      .eq('id', userId);
+
+    if (error) {
+      console.error('Error updating user:', error);
+      return res.status(500).json({ message: 'Failed to save calendar connection' });
+    }
+
+    res.json({
+      success: true,
+      message: 'Google Calendar connected successfully',
+      email: profile.email
+    });
+  } catch (error) {
+    console.error('Error connecting Google Calendar:', error);
+    res.status(500).json({
+      message: error.message || 'Failed to connect Google Calendar'
+    });
+  }
+});
+
+/**
+ * Get Google connection status
+ */
+router.get('/google/status', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const user = await getUserWithTokens(userId);
+
+    res.json({
+      connected: user.google_connected || false,
+      email: user.google_email || null,
+      lastSynced: user.google_last_synced_at || null
+    });
+  } catch (error) {
+    console.error('Error getting Google status:', error);
+    res.status(500).json({
+      message: 'Failed to get Google status',
+      connected: false
+    });
+  }
+});
+
+/**
+ * Disconnect Google Calendar
+ */
+router.post('/google/disconnect', async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const supabase = getSupabase();
+    const { error } = await supabase
+      .from('users')
+      .update({
+        google_connected: false,
+        google_email: null,
+        google_access_token: null,
+        google_refresh_token: null,
+        google_token_expires_at: null,
+        google_last_synced_at: null
+      })
+      .eq('id', userId);
+
+    if (error) {
+      console.error('Error disconnecting Google:', error);
+      return res.status(500).json({ message: 'Failed to disconnect Google' });
+    }
+
+    res.json({
+      success: true,
+      message: 'Google Calendar disconnected successfully'
+    });
+  } catch (error) {
+    console.error('Error disconnecting Google Calendar:', error);
+    res.status(500).json({
+      message: 'Failed to disconnect Google Calendar'
+    });
+  }
+});
+
+/**
+ * Create event in Google Calendar
+ */
+router.post('/google/events', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const eventData = req.body;
+
+    const user = await getUserWithTokens(userId);
+
+    if (!user.google_connected) {
+      return res.status(400).json({ message: 'Google Calendar not connected' });
+    }
+
+    // Ensure valid access token
+    const accessToken = await ensureValidGoogleAccessToken(user);
+
+    // Create event
+    const event = await googleCalendarService.createEvent(accessToken, eventData);
+
+    res.json({
+      success: true,
+      eventId: event.id,
+      message: 'Event created in Google Calendar'
+    });
+  } catch (error) {
+    console.error('Error creating Google Calendar event:', error);
+    res.status(500).json({
+      message: error.message || 'Failed to create Google Calendar event'
+    });
+  }
+});
+
+/**
+ * Get Google Calendar events
+ */
+router.get('/google/events', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { startDate, endDate } = req.query;
+
+    const user = await getUserWithTokens(userId);
+
+    if (!user.google_connected) {
+      return res.status(400).json({ message: 'Google Calendar not connected' });
+    }
+
+    // Ensure valid access token
+    const accessToken = await ensureValidGoogleAccessToken(user);
+
+    // Default to last 7 days and next 30 days
+    const start = startDate ? new Date(startDate) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const end = endDate ? new Date(endDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+    console.log('📅 Fetching Google Calendar events from', start.toISOString(), 'to', end.toISOString());
+
+    const events = await googleCalendarService.getEvents(accessToken, start, end);
+
+    console.log('📅 Found', events.length, 'events in Google Calendar');
+
+    res.json({
+      success: true,
+      events,
+      totalCount: events.length
+    });
+  } catch (error) {
+    console.error('Error getting Google Calendar events:', error);
+    res.status(500).json({
+      message: error.message || 'Failed to get Google Calendar events'
     });
   }
 });
