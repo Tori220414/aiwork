@@ -1,13 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const { createClient } = require('@supabase/supabase-js');
+const { getSupabase } = require('../config/supabase');
 const microsoftGraphService = require('../services/microsoftGraphService');
 const { protect } = require('../middleware/auth-supabase');
-
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
-);
 
 // Apply authentication middleware to all calendar routes
 router.use(protect);
@@ -16,6 +11,7 @@ router.use(protect);
  * Helper function to get user with calendar tokens
  */
 async function getUserWithTokens(userId) {
+  const supabase = getSupabase();
   const { data: user, error } = await supabase
     .from('users')
     .select('*')
@@ -43,6 +39,7 @@ async function ensureValidAccessToken(user) {
     const tokens = await microsoftGraphService.refreshAccessToken(user.outlook_refresh_token);
 
     // Update tokens in database
+    const supabase = getSupabase();
     const expiresAt = new Date(Date.now() + tokens.expiresIn * 1000);
     await supabase
       .from('users')
@@ -81,6 +78,7 @@ router.post('/outlook/connect', async (req, res) => {
     const expiresAt = new Date(Date.now() + tokens.expiresIn * 1000);
 
     // Update user with calendar integration data
+    const supabase = getSupabase();
     const { error } = await supabase
       .from('users')
       .update({
@@ -140,6 +138,7 @@ router.post('/outlook/disconnect', async (req, res) => {
   try {
     const userId = req.user.id;
 
+    const supabase = getSupabase();
     const { error } = await supabase
       .from('users')
       .update({
@@ -184,6 +183,7 @@ router.post('/outlook/sync-task/:taskId', async (req, res) => {
     }
 
     // Get task details
+    const supabase = getSupabase();
     const { data: task, error: taskError } = await supabase
       .from('tasks')
       .select('*')
@@ -334,6 +334,7 @@ router.post('/outlook/import', async (req, res) => {
     let tasksCreated = 0;
 
     // Create tasks from events
+    const supabase = getSupabase();
     for (const event of eventsToImport) {
       const estimatedTime = Math.round(
         (new Date(event.endTime) - new Date(event.startTime)) / (60 * 1000)
