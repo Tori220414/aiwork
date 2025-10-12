@@ -26,6 +26,7 @@ const Layout: React.FC = () => {
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Tasks', href: '/tasks', icon: CheckSquare },
     { name: 'Brain Dump', href: '/brain-dump', icon: Brain },
+    { name: 'Daily Planner', href: '/daily-planner', icon: CalendarDays },
     { name: 'Weekly Planner', href: '/weekly-planner', icon: CalendarDays },
     { name: 'AI Assistant', href: '/ai-assistant', icon: Bot },
     { name: 'Workspaces', href: '/workspaces', icon: Layers },

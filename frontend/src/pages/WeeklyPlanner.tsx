@@ -1,13 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { aiService, WeeklyPlan } from '../services/aiService';
-import { Calendar, ChevronLeft, ChevronRight, Loader2, Sparkles, TrendingUp } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, Loader2, Sparkles, TrendingUp, Cloud, CloudOff } from 'lucide-react';
 import toast from 'react-hot-toast';
+import plannerService from '../services/plannerService';
+import calendarService from '../services/calendarService';
 
 const WeeklyPlanner: React.FC = () => {
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(getWeekStart(new Date()));
   const [weeklyPlan, setWeeklyPlan] = useState<WeeklyPlan | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedDay, setSelectedDay] = useState<number>(0);
+  const [outlookConnected, setOutlookConnected] = useState(false);
+  const [syncToOutlook, setSyncToOutlook] = useState(true);
 
   function getWeekStart(date: Date): Date {
     const d = new Date(date);
@@ -26,15 +30,36 @@ const WeeklyPlanner: React.FC = () => {
     return result;
   }
 
+  useEffect(() => {
+    checkOutlookConnection();
+  }, []);
+
+  const checkOutlookConnection = async () => {
+    try {
+      const status = await calendarService.getOutlookStatus();
+      setOutlookConnected(status.connected);
+    } catch (error) {
+      console.error('Failed to check Outlook connection:', error);
+    }
+  };
+
   const handleGenerateWeeklyPlan = async () => {
     setIsGenerating(true);
     try {
-      const response = await aiService.generateWeeklyPlan(formatDate(currentWeekStart));
-      setWeeklyPlan(response.plan);
-      toast.success('Weekly plan generated successfully!');
+      const response = await plannerService.generateWeeklyPlan(formatDate(currentWeekStart), syncToOutlook && outlookConnected);
+      setWeeklyPlan(response.plan as WeeklyPlan);
+
+      if (response.syncedToOutlook && response.syncedEvents && response.syncedEvents.length > 0) {
+        toast.success(`Weekly plan generated and ${response.syncedEvents.length} events synced to Outlook!`, { duration: 5000 });
+      } else if (response.syncError) {
+        toast.success('Weekly plan generated successfully!');
+        toast.error(`Outlook sync failed: ${response.syncError}`, { duration: 5000 });
+      } else {
+        toast.success('Weekly plan generated successfully!');
+      }
     } catch (error: any) {
       console.error('Error generating weekly plan:', error);
-      toast.error(error.response?.data?.error || 'Failed to generate weekly plan');
+      toast.error(error.message || 'Failed to generate weekly plan');
     } finally {
       setIsGenerating(false);
     }
@@ -107,7 +132,24 @@ const WeeklyPlanner: React.FC = () => {
           </button>
         </div>
 
-        <div className="mt-4">
+        <div className="mt-4 space-y-3">
+          {outlookConnected && (
+            <div className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center">
+                <Cloud className="w-5 h-5 text-blue-600 mr-2" />
+                <span className="text-sm font-medium text-blue-900">Sync to Outlook Calendar</span>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={syncToOutlook}
+                  onChange={(e) => setSyncToOutlook(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+            </div>
+          )}
           <button
             onClick={handleGenerateWeeklyPlan}
             disabled={isGenerating}
@@ -121,7 +163,7 @@ const WeeklyPlanner: React.FC = () => {
             ) : (
               <>
                 <Sparkles className="w-5 h-5 mr-2" />
-                Generate AI Weekly Plan
+                {syncToOutlook && outlookConnected ? 'Generate & Sync to Outlook' : 'Generate AI Weekly Plan'}
               </>
             )}
           </button>
