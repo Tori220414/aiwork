@@ -25,7 +25,7 @@ export const calendarService = {
     const config: OutlookAuthConfig = {
       clientId: process.env.REACT_APP_OUTLOOK_CLIENT_ID || '',
       redirectUri: `${window.location.origin}/auth/outlook/callback`,
-      scopes: ['Calendars.ReadWrite', 'User.Read']
+      scopes: ['Calendars.ReadWrite', 'User.Read', 'offline_access']
     };
 
     const params = new URLSearchParams({
