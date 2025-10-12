@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useTaskStore } from '../store/useTaskStore';
 import { Task } from '../services/taskService';
-import { Plus, Filter, Search, Edit2, Trash2, CheckCircle2 } from 'lucide-react';
+import { Plus, Filter, Search, Edit2, Trash2, CheckCircle2, Square, CheckSquare } from 'lucide-react';
 import toast from 'react-hot-toast';
 import TaskCreateModal from '../components/TaskCreateModal';
 
@@ -14,6 +14,8 @@ const Tasks: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState<string>('');
   const [filterPriority, setFilterPriority] = useState<string>('');
   const [isCreatingTasks, setIsCreatingTasks] = useState(false);
+  const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set());
+  const [selectMode, setSelectMode] = useState(false);
 
   // Handle tasks from brain dump
   useEffect(() => {
@@ -97,6 +99,60 @@ const Tasks: React.FC = () => {
     }
   };
 
+  const toggleSelectTask = (taskId: string) => {
+    const newSelected = new Set(selectedTasks);
+    if (newSelected.has(taskId)) {
+      newSelected.delete(taskId);
+    } else {
+      newSelected.add(taskId);
+    }
+    setSelectedTasks(newSelected);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedTasks.size === tasks.length) {
+      setSelectedTasks(new Set());
+    } else {
+      setSelectedTasks(new Set(tasks.map(t => t._id!)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedTasks.size === 0) {
+      toast.error('No tasks selected');
+      return;
+    }
+
+    if (window.confirm(`Are you sure you want to delete ${selectedTasks.size} task${selectedTasks.size > 1 ? 's' : ''}?`)) {
+      let successCount = 0;
+      let failCount = 0;
+
+      try {
+        for (const taskId of selectedTasks) {
+          try {
+            await deleteTask(taskId);
+            successCount++;
+          } catch (error) {
+            console.error('Error deleting task:', taskId, error);
+            failCount++;
+          }
+        }
+
+        if (successCount > 0) {
+          toast.success(`Successfully deleted ${successCount} task${successCount > 1 ? 's' : ''}`);
+        }
+        if (failCount > 0) {
+          toast.error(`Failed to delete ${failCount} task${failCount > 1 ? 's' : ''}`);
+        }
+
+        setSelectedTasks(new Set());
+        setSelectMode(false);
+      } catch (error) {
+        toast.error('An error occurred during bulk delete');
+      }
+    }
+  };
+
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case 'urgent': return 'bg-red-100 text-red-700 border-red-300';
@@ -123,19 +179,73 @@ const Tasks: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Tasks</h1>
-          <p className="text-gray-600 mt-1">Manage and organize your tasks</p>
+          <p className="text-gray-600 mt-1">
+            {selectMode
+              ? `${selectedTasks.size} task${selectedTasks.size !== 1 ? 's' : ''} selected`
+              : 'Manage and organize your tasks'}
+          </p>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="btn btn-primary flex items-center justify-center"
-        >
-          <Plus className="w-5 h-5 mr-2" />
-          New Task
-        </button>
+        <div className="flex items-center gap-2">
+          {selectMode ? (
+            <>
+              <button
+                onClick={() => {
+                  setSelectMode(false);
+                  setSelectedTasks(new Set());
+                }}
+                className="btn btn-secondary flex items-center justify-center"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                disabled={selectedTasks.size === 0}
+                className="btn bg-red-600 hover:bg-red-700 text-white flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Trash2 className="w-5 h-5 mr-2" />
+                Delete ({selectedTasks.size})
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => setSelectMode(true)}
+                className="btn btn-secondary flex items-center justify-center"
+              >
+                <CheckSquare className="w-5 h-5 mr-2" />
+                Select
+              </button>
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="btn btn-primary flex items-center justify-center"
+              >
+                <Plus className="w-5 h-5 mr-2" />
+                New Task
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Filters and Search */}
       <div className="card">
+        {selectMode && tasks.length > 0 && (
+          <div className="mb-4 pb-4 border-b border-gray-200">
+            <button
+              onClick={toggleSelectAll}
+              className="flex items-center gap-2 text-sm text-gray-700 hover:text-primary-600 transition-colors"
+            >
+              {selectedTasks.size === tasks.length ? (
+                <CheckSquare className="w-5 h-5 text-primary-600" />
+              ) : (
+                <Square className="w-5 h-5" />
+              )}
+              <span className="font-medium">
+                {selectedTasks.size === tasks.length ? 'Deselect All' : 'Select All'}
+              </span>
+            </button>
+          </div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="md:col-span-2">
             <div className="relative">
@@ -196,21 +306,38 @@ const Tasks: React.FC = () => {
             {tasks.map((task) => (
               <div
                 key={task._id}
-                className={`p-4 rounded-lg border-2 transition-all hover:shadow-md ${
-                  task.status === 'completed' ? 'bg-gray-50 border-gray-200' : 'border-gray-200 hover:border-primary-300'
+                className={`p-4 rounded-lg border-2 transition-all ${
+                  selectMode && selectedTasks.has(task._id!)
+                    ? 'bg-primary-50 border-primary-400 shadow-md'
+                    : task.status === 'completed'
+                    ? 'bg-gray-50 border-gray-200'
+                    : 'border-gray-200 hover:border-primary-300 hover:shadow-md'
                 }`}
               >
                 <div className="flex items-start gap-4">
-                  <button
-                    onClick={() => handleToggleComplete(task)}
-                    className="mt-1 flex-shrink-0"
-                  >
-                    {task.status === 'completed' ? (
-                      <CheckCircle2 className="w-6 h-6 text-green-600" />
-                    ) : (
-                      <div className="w-6 h-6 rounded-full border-2 border-gray-300 hover:border-primary-500" />
-                    )}
-                  </button>
+                  {selectMode ? (
+                    <button
+                      onClick={() => toggleSelectTask(task._id!)}
+                      className="mt-1 flex-shrink-0"
+                    >
+                      {selectedTasks.has(task._id!) ? (
+                        <CheckSquare className="w-6 h-6 text-primary-600" />
+                      ) : (
+                        <Square className="w-6 h-6 text-gray-400 hover:text-primary-500" />
+                      )}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleToggleComplete(task)}
+                      className="mt-1 flex-shrink-0"
+                    >
+                      {task.status === 'completed' ? (
+                        <CheckCircle2 className="w-6 h-6 text-green-600" />
+                      ) : (
+                        <div className="w-6 h-6 rounded-full border-2 border-gray-300 hover:border-primary-500" />
+                      )}
+                    </button>
+                  )}
 
                   <div className="flex-1 min-w-0">
                     <h3 className={`text-lg font-medium ${
@@ -266,20 +393,22 @@ const Tasks: React.FC = () => {
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => toast('Edit functionality coming soon!')}
-                      className="p-2 text-gray-600 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
-                    >
-                      <Edit2 className="w-5 h-5" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteTask(task._id!)}
-                      className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
-                  </div>
+                  {!selectMode && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => toast('Edit functionality coming soon!')}
+                        className="p-2 text-gray-600 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+                      >
+                        <Edit2 className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteTask(task._id!)}
+                        className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
