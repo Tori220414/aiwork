@@ -49,7 +49,8 @@ const DailyPlanner: React.FC = () => {
     try {
       const response = await plannerService.generateDailyPlan(
         formatDate(selectedDate),
-        syncToOutlook && outlookConnected
+        syncToOutlook && outlookConnected,
+        syncToGoogle && googleConnected
       );
 
       // The response.plan is typed as DailyPlan | WeeklyPlan, but we know it's DailyPlan for this endpoint
@@ -58,11 +59,16 @@ const DailyPlanner: React.FC = () => {
       }
 
       let syncMessages = [];
-      if (response.syncedToOutlook && response.syncedEvents && response.syncedEvents.length > 0) {
-        syncMessages.push(`${response.syncedEvents.length} events synced to Outlook`);
+      if (response.syncedToOutlook) {
+        const outlookCount = response.syncedEvents?.filter(e => 'outlookEventId' in e).length || 0;
+        if (outlookCount > 0) syncMessages.push(`${outlookCount} events synced to Outlook`);
       }
-      if (response.syncError) {
-        toast.error(`Sync error: ${response.syncError}`, { duration: 5000 });
+      if (response.syncedToGoogle) {
+        const googleCount = response.syncedEvents?.filter(e => 'googleEventId' in e).length || 0;
+        if (googleCount > 0) syncMessages.push(`${googleCount} events synced to Google Calendar`);
+      }
+      if (response.syncErrors) {
+        toast.error(`Sync errors: ${response.syncErrors}`, { duration: 5000 });
       }
 
       if (syncMessages.length > 0) {

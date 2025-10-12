@@ -15,16 +15,17 @@ export interface PlanResponse {
   success: boolean;
   plan: DailyPlan | WeeklyPlan;
   syncedToOutlook: boolean;
+  syncedToGoogle?: boolean;
   syncedEvents?: SyncedEvent[];
-  syncError?: string;
+  syncErrors?: string;
   message: string;
 }
 
 export const plannerService = {
   /**
-   * Generate and optionally sync daily plan to Outlook
+   * Generate and optionally sync daily plan to calendars
    */
-  async generateDailyPlan(date?: string, syncToOutlook = true): Promise<PlanResponse> {
+  async generateDailyPlan(date?: string, syncToOutlook = false, syncToGoogle = false): Promise<PlanResponse> {
     try {
       // Get timezone offset in minutes (e.g., -600 for Sydney AEST = UTC+10)
       const timezoneOffset = new Date().getTimezoneOffset();
@@ -32,6 +33,7 @@ export const plannerService = {
       const response = await api.post('/planner/daily/generate-and-sync', {
         date,
         syncToOutlook,
+        syncToGoogle,
         timezoneOffset
       });
       return response.data;
@@ -41,9 +43,9 @@ export const plannerService = {
   },
 
   /**
-   * Generate and optionally sync weekly plan to Outlook
+   * Generate and optionally sync weekly plan to calendars
    */
-  async generateWeeklyPlan(weekStart?: string, syncToOutlook = true): Promise<PlanResponse> {
+  async generateWeeklyPlan(weekStart?: string, syncToOutlook = false, syncToGoogle = false): Promise<PlanResponse> {
     try {
       // Get timezone offset in minutes (e.g., -600 for Sydney AEST = UTC+10)
       const timezoneOffset = new Date().getTimezoneOffset();
@@ -51,6 +53,7 @@ export const plannerService = {
       const response = await api.post('/planner/weekly/generate-and-sync', {
         weekStart,
         syncToOutlook,
+        syncToGoogle,
         timezoneOffset
       });
       return response.data;

@@ -52,7 +52,11 @@ const WeeklyPlanner: React.FC = () => {
   const handleGenerateWeeklyPlan = async () => {
     setIsGenerating(true);
     try {
-      const response = await plannerService.generateWeeklyPlan(formatDate(currentWeekStart), syncToOutlook && outlookConnected);
+      const response = await plannerService.generateWeeklyPlan(
+        formatDate(currentWeekStart),
+        syncToOutlook && outlookConnected,
+        syncToGoogle && googleConnected
+      );
 
       // The response.plan is typed as DailyPlan | WeeklyPlan, but we know it's WeeklyPlan for this endpoint
       if (response.plan && 'days' in response.plan) {
@@ -60,11 +64,16 @@ const WeeklyPlanner: React.FC = () => {
       }
 
       let syncMessages = [];
-      if (response.syncedToOutlook && response.syncedEvents && response.syncedEvents.length > 0) {
-        syncMessages.push(`${response.syncedEvents.length} events synced to Outlook`);
+      if (response.syncedToOutlook) {
+        const outlookCount = response.syncedEvents?.filter(e => 'outlookEventId' in e).length || 0;
+        if (outlookCount > 0) syncMessages.push(`${outlookCount} events synced to Outlook`);
       }
-      if (response.syncError) {
-        toast.error(`Sync error: ${response.syncError}`, { duration: 5000 });
+      if (response.syncedToGoogle) {
+        const googleCount = response.syncedEvents?.filter(e => 'googleEventId' in e).length || 0;
+        if (googleCount > 0) syncMessages.push(`${googleCount} events synced to Google Calendar`);
+      }
+      if (response.syncErrors) {
+        toast.error(`Sync errors: ${response.syncErrors}`, { duration: 5000 });
       }
 
       if (syncMessages.length > 0) {

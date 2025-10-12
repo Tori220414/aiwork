@@ -3,6 +3,7 @@ const router = express.Router();
 const { getSupabase } = require('../config/supabase');
 const geminiService = require('../services/geminiService');
 const microsoftGraphService = require('../services/microsoftGraphService');
+const googleCalendarService = require('../services/googleCalendarService');
 const { protect } = require('../middleware/auth-supabase');
 
 // Apply authentication middleware
@@ -40,19 +41,50 @@ async function ensureValidOutlookToken(user) {
 }
 
 /**
- * Generate daily plan and sync to Outlook
+ * Helper to ensure valid Google access token
+ */
+async function ensureValidGoogleToken(user) {
+  const now = new Date();
+  const expiresAt = user.google_token_expires_at ? new Date(user.google_token_expires_at) : null;
+
+  if (!expiresAt || expiresAt <= new Date(now.getTime() + 5 * 60 * 1000)) {
+    if (!user.google_refresh_token) {
+      throw new Error('Google Calendar not connected. Please connect your calendar first.');
+    }
+
+    const tokens = await googleCalendarService.refreshAccessToken(user.google_refresh_token);
+    const supabase = getSupabase();
+    const newExpiresAt = new Date(Date.now() + tokens.expiresIn * 1000);
+
+    await supabase
+      .from('users')
+      .update({
+        google_access_token: tokens.accessToken,
+        google_refresh_token: tokens.refreshToken,
+        google_token_expires_at: newExpiresAt.toISOString()
+      })
+      .eq('id', user.id);
+
+    return tokens.accessToken;
+  }
+
+  return user.google_access_token;
+}
+
+/**
+ * Generate daily plan and sync to calendars
  */
 router.post('/daily/generate-and-sync', async (req, res) => {
   try {
     const userId = req.user.id;
-    const { date, syncToOutlook = true, timezoneOffset = 0 } = req.body;
+    const { date, syncToOutlook = false, syncToGoogle = false, timezoneOffset = 0 } = req.body;
 
     // Get user's tasks and preferences
     const supabase = getSupabase();
 
     const { data: user } = await supabase
       .from('users')
-      .select('*, outlook_connected, outlook_access_token, outlook_refresh_token, outlook_token_expires_at')
+      .select('*, outlook_connected, outlook_access_token, outlook_refresh_token, outlook_token_expires_at, google_connected, google_access_token, google_refresh_token, google_token_expires_at')
       .eq('id', userId)
       .single();
 
@@ -78,22 +110,26 @@ router.post('/daily/generate-and-sync', async (req, res) => {
       return res.status(500).json({ message: 'Failed to generate daily plan' });
     }
 
-    // Sync to Outlook if enabled and connected
-    let syncedEvents = [];
+    // Sync to calendars if enabled and connected
+    let syncedEventsOutlook = [];
+    let syncedEventsGoogle = [];
+    let syncErrors = [];
+
+    // Parse the date in the user's timezone for both calendars
+    const [year, month, day] = (date || new Date().toISOString().split('T')[0]).split('-').map(Number);
+
+    // Sync to Outlook if enabled
     if (syncToOutlook && user.outlook_connected) {
       try {
         console.log('🔵 Syncing daily plan to Outlook for user:', user.outlook_email);
         console.log('🔵 Timezone offset:', timezoneOffset, 'minutes');
         const accessToken = await ensureValidOutlookToken(user);
-
-        // Parse the date in the user's timezone
-        const [year, month, day] = (date || new Date().toISOString().split('T')[0]).split('-').map(Number);
         console.log('🔵 Plan has', plan.timeBlocks.length, 'time blocks for date:', date);
 
         // Create calendar events for each time block
         for (const block of plan.timeBlocks) {
           if (block.type === 'break' || !block.taskTitle) continue;
-          console.log('🔵 Creating event:', block.taskTitle, block.startTime, '-', block.endTime);
+          console.log('🔵 Creating Outlook event:', block.taskTitle, block.startTime, '-', block.endTime);
 
           const [startHour, startMin] = block.startTime.split(':');
           const [endHour, endMin] = block.endTime.split(':');
@@ -116,41 +152,85 @@ router.post('/daily/generate-and-sync', async (req, res) => {
           };
 
           const createdEvent = await microsoftGraphService.createEvent(accessToken, event);
-          console.log('✅ Event created:', createdEvent.id);
-          syncedEvents.push({
+          console.log('✅ Outlook event created:', createdEvent.id);
+          syncedEventsOutlook.push({
             taskTitle: block.taskTitle,
             startTime: block.startTime,
             endTime: block.endTime,
             outlookEventId: createdEvent.id
           });
         }
-        console.log('✅ Successfully synced', syncedEvents.length, 'events to Outlook');
+        console.log('✅ Successfully synced', syncedEventsOutlook.length, 'events to Outlook');
       } catch (syncError) {
         console.error('❌ Outlook sync error:', syncError.message);
-        console.error('Full error:', syncError);
-        // Continue even if sync fails - return plan anyway
-        return res.json({
-          success: true,
-          plan,
-          syncedToOutlook: false,
-          syncError: syncError.message,
-          message: 'Plan generated but failed to sync to Outlook'
-        });
+        syncErrors.push(`Outlook: ${syncError.message}`);
       }
     }
 
+    // Sync to Google Calendar if enabled
+    if (syncToGoogle && user.google_connected) {
+      try {
+        console.log('🟢 Syncing daily plan to Google Calendar for user:', user.google_email);
+        const accessToken = await ensureValidGoogleToken(user);
+        console.log('🟢 Plan has', plan.timeBlocks.length, 'time blocks for date:', date);
+
+        // Create calendar events for each time block
+        for (const block of plan.timeBlocks) {
+          if (block.type === 'break' || !block.taskTitle) continue;
+          console.log('🟢 Creating Google Calendar event:', block.taskTitle, block.startTime, '-', block.endTime);
+
+          const [startHour, startMin] = block.startTime.split(':');
+          const [endHour, endMin] = block.endTime.split(':');
+
+          // Create Date in UTC, then adjust for user's timezone
+          const startTime = new Date(Date.UTC(year, month - 1, day, parseInt(startHour), parseInt(startMin), 0));
+          startTime.setMinutes(startTime.getMinutes() + timezoneOffset);
+
+          const endTime = new Date(Date.UTC(year, month - 1, day, parseInt(endHour), parseInt(endMin), 0));
+          endTime.setMinutes(endTime.getMinutes() + timezoneOffset);
+
+          console.log('🟢 Event times (UTC):', startTime.toISOString(), '-', endTime.toISOString());
+
+          const event = {
+            title: `[Plan] ${block.taskTitle}`,
+            description: block.notes || 'Part of your daily plan',
+            startTime,
+            endTime
+          };
+
+          const createdEvent = await googleCalendarService.createEvent(accessToken, event);
+          console.log('✅ Google Calendar event created:', createdEvent.id);
+          syncedEventsGoogle.push({
+            taskTitle: block.taskTitle,
+            startTime: block.startTime,
+            endTime: block.endTime,
+            googleEventId: createdEvent.id
+          });
+        }
+        console.log('✅ Successfully synced', syncedEventsGoogle.length, 'events to Google Calendar');
+      } catch (syncError) {
+        console.error('❌ Google Calendar sync error:', syncError.message);
+        syncErrors.push(`Google: ${syncError.message}`);
+      }
+    }
+
+    const totalSynced = syncedEventsOutlook.length + syncedEventsGoogle.length;
+
     console.log('📊 Daily plan response:', {
-      syncedToOutlook: syncedEvents.length > 0,
-      eventCount: syncedEvents.length
+      syncedToOutlook: syncedEventsOutlook.length > 0,
+      syncedToGoogle: syncedEventsGoogle.length > 0,
+      totalSynced: totalSynced
     });
 
     res.json({
       success: true,
       plan,
-      syncedToOutlook: syncedEvents.length > 0,
-      syncedEvents,
-      message: syncedEvents.length > 0
-        ? `Daily plan generated and ${syncedEvents.length} events added to Outlook!`
+      syncedToOutlook: syncedEventsOutlook.length > 0,
+      syncedToGoogle: syncedEventsGoogle.length > 0,
+      syncedEvents: [...syncedEventsOutlook, ...syncedEventsGoogle],
+      syncErrors: syncErrors.length > 0 ? syncErrors.join(', ') : null,
+      message: totalSynced > 0
+        ? `Daily plan generated and ${totalSynced} events synced to calendar!`
         : 'Daily plan generated successfully!'
     });
 
