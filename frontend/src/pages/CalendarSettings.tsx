@@ -25,6 +25,16 @@ const CalendarSettings: React.FC = () => {
   };
 
   const handleConnectOutlook = () => {
+    const clientId = process.env.REACT_APP_OUTLOOK_CLIENT_ID;
+
+    if (!clientId) {
+      toast.error(
+        'Outlook integration not configured. Please contact administrator to set up Microsoft App Registration.',
+        { duration: 5000 }
+      );
+      return;
+    }
+
     setIsConnecting(true);
     const authUrl = calendarService.getOutlookAuthUrl();
     window.location.href = authUrl;
@@ -146,6 +156,32 @@ const CalendarSettings: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Setup Instructions */}
+      {!process.env.REACT_APP_OUTLOOK_CLIENT_ID && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <div className="flex items-start space-x-3">
+            <svg className="w-5 h-5 text-yellow-600 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-yellow-900 mb-2">Setup Required</h3>
+              <p className="text-sm text-yellow-800 mb-3">
+                To enable Outlook calendar integration, you need to configure a Microsoft App Registration:
+              </p>
+              <ol className="text-sm text-yellow-800 space-y-2 list-decimal list-inside">
+                <li>Go to <a href="https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" target="_blank" rel="noopener noreferrer" className="underline font-medium">Azure Portal - App Registrations</a></li>
+                <li>Click "New registration"</li>
+                <li>Set name: "Aurora Tasks Calendar Sync"</li>
+                <li>Set redirect URI: <code className="bg-yellow-100 px-1 rounded">{window.location.origin}/auth/outlook/callback</code></li>
+                <li>Copy the Application (client) ID</li>
+                <li>Add environment variable: <code className="bg-yellow-100 px-1 rounded">REACT_APP_OUTLOOK_CLIENT_ID</code></li>
+                <li>Under "API permissions", add: <code className="bg-yellow-100 px-1 rounded">Calendars.ReadWrite</code> and <code className="bg-yellow-100 px-1 rounded">User.Read</code></li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Features Info */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
