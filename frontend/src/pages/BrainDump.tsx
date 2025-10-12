@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Brain, Sparkles, CheckCircle, Loader2, ArrowRight, Save, Trash2 } from 'lucide-react';
+import { Brain, Sparkles, CheckCircle, Loader2, ArrowRight, Save, Trash2, Mic, MicOff } from 'lucide-react';
 import { aiService } from '../services/aiService';
 import { Task } from '../services/taskService';
 import toast from 'react-hot-toast';
@@ -16,6 +16,9 @@ const BrainDump: React.FC = () => {
   const [isExtracting, setIsExtracting] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [savedDumps, setSavedDumps] = useState<Array<{ id: string; text: string; date: Date }>>([]);
+  const [isListening, setIsListening] = useState(false);
+  const [isSupported, setIsSupported] = useState(true);
+  const recognitionRef = useRef<any>(null);
 
   const handleExtractTasks = async () => {
     if (!dumpText.trim()) {
@@ -95,10 +98,93 @@ const BrainDump: React.FC = () => {
     }
   };
 
-  React.useEffect(() => {
+  useEffect(() => {
     const dumps = JSON.parse(localStorage.getItem('brainDumps') || '[]');
     setSavedDumps(dumps);
   }, []);
+
+  // Initialize speech recognition
+  useEffect(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      setIsSupported(false);
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = () => {
+      setIsListening(true);
+      toast.success('Voice recording started. Speak now!', { icon: '🎤' });
+    };
+
+    recognition.onresult = (event: any) => {
+      let interimTranscript = '';
+      let finalTranscript = '';
+
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscript += transcript + ' ';
+        } else {
+          interimTranscript += transcript;
+        }
+      }
+
+      if (finalTranscript) {
+        setDumpText(prev => prev + finalTranscript);
+      }
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error('Speech recognition error:', event.error);
+      setIsListening(false);
+
+      if (event.error === 'no-speech') {
+        toast.error('No speech detected. Please try again.');
+      } else if (event.error === 'not-allowed') {
+        toast.error('Microphone access denied. Please enable microphone permissions.');
+      } else {
+        toast.error(`Speech recognition error: ${event.error}`);
+      }
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognitionRef.current = recognition;
+
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+    };
+  }, []);
+
+  const toggleVoiceInput = () => {
+    if (!isSupported) {
+      toast.error('Speech recognition is not supported in your browser. Please use Chrome, Edge, or Safari.');
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      toast.success('Voice recording stopped', { icon: '⏸️' });
+    } else {
+      try {
+        recognitionRef.current?.start();
+      } catch (error) {
+        console.error('Error starting recognition:', error);
+        toast.error('Failed to start voice recording. Please try again.');
+      }
+    }
+  };
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -134,8 +220,30 @@ const BrainDump: React.FC = () => {
         <div className="lg:col-span-2 space-y-4">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">Write Your Thoughts</h2>
+              <h2 className="text-lg font-semibold text-gray-900">Write or Speak Your Thoughts</h2>
               <div className="flex space-x-2">
+                <button
+                  onClick={toggleVoiceInput}
+                  className={`flex items-center px-3 py-2 text-sm rounded-lg transition-all ${
+                    isListening
+                      ? 'bg-red-500 text-white hover:bg-red-600 animate-pulse'
+                      : 'text-purple-600 bg-purple-50 hover:bg-purple-100'
+                  }`}
+                  title={isSupported ? (isListening ? 'Stop voice input' : 'Start voice input') : 'Voice input not supported'}
+                  disabled={!isSupported}
+                >
+                  {isListening ? (
+                    <>
+                      <MicOff className="w-4 h-4 mr-1" />
+                      Stop
+                    </>
+                  ) : (
+                    <>
+                      <Mic className="w-4 h-4 mr-1" />
+                      Voice
+                    </>
+                  )}
+                </button>
                 <button
                   onClick={saveDump}
                   className="flex items-center px-3 py-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
@@ -155,10 +263,17 @@ const BrainDump: React.FC = () => {
               </div>
             </div>
 
-            <textarea
-              value={dumpText}
-              onChange={(e) => setDumpText(e.target.value)}
-              placeholder="Just start typing... dump everything that's on your mind. Don't worry about formatting or organization - the AI will help you make sense of it all!
+            <div className="relative">
+              {isListening && (
+                <div className="absolute top-2 right-2 z-10 flex items-center gap-2 px-3 py-2 bg-red-500 text-white rounded-lg shadow-lg animate-pulse">
+                  <Mic className="w-4 h-4" />
+                  <span className="text-sm font-medium">Listening...</span>
+                </div>
+              )}
+              <textarea
+                value={dumpText}
+                onChange={(e) => setDumpText(e.target.value)}
+                placeholder="Just start typing or click 'Voice' to speak... dump everything that's on your mind. Don't worry about formatting or organization - the AI will help you make sense of it all!
 
 Examples:
 - Need to finish the project proposal by Friday
@@ -167,8 +282,9 @@ Examples:
 - Team meeting tomorrow at 2pm to discuss Q2 goals
 - Fix that annoying bug in the login page
 - Remember to buy groceries and pick up dry cleaning"
-              className="w-full h-96 p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none text-gray-700 placeholder-gray-400"
-            />
+                className="w-full h-96 p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none text-gray-700 placeholder-gray-400"
+              />
+            </div>
 
             <div className="flex items-center justify-between mt-4">
               <p className="text-sm text-gray-500">
@@ -298,7 +414,8 @@ Examples:
             <div className="mt-6 pt-6 border-t border-gray-200">
               <h4 className="text-sm font-semibold text-gray-900 mb-2">Tips</h4>
               <ul className="text-xs text-gray-600 space-y-2">
-                <li>• Write naturally - no need to format</li>
+                <li>• Write or speak naturally - no need to format</li>
+                <li>• Click "Voice" to use speech-to-text</li>
                 <li>• Include deadlines when you know them</li>
                 <li>• Mention priority levels if important</li>
                 <li>• AI will organize everything for you</li>
