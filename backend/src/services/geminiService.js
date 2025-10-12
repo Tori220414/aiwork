@@ -315,6 +315,85 @@ Make suggestions practical and timely.
     }
   }
 
+  async generateWeeklyPlan(tasks, userPreferences = {}, weekStart = new Date()) {
+    const {
+      workStartTime = '09:00',
+      workEndTime = '17:00',
+      workDaysPerWeek = 5,
+      breakDuration = 60,
+      deepWorkPreference = 'morning'
+    } = userPreferences;
+
+    const prompt = `
+Create an optimal weekly schedule for these tasks:
+
+Tasks: ${JSON.stringify(tasks)}
+Week Starting: ${weekStart.toISOString()}
+Work Hours: ${workStartTime} to ${workEndTime}
+Work Days: ${workDaysPerWeek} days per week
+Break Duration: ${breakDuration} minutes
+Deep Work Preference: ${deepWorkPreference}
+
+Consider:
+- Distribute tasks across the week based on priority and deadlines
+- Schedule complex tasks during peak productivity times (${deepWorkPreference})
+- Balance workload across days
+- Include breaks and planning time
+- Group similar tasks together
+- Consider task dependencies and estimated time
+
+Return as valid JSON (no markdown):
+{
+  "summary": "Overview of the week's plan",
+  "days": [
+    {
+      "date": "2025-01-13",
+      "dayName": "Monday",
+      "tasksCount": 5,
+      "plan": {
+        "summary": "Focus for the day",
+        "timeBlocks": [
+          {
+            "startTime": "09:00",
+            "endTime": "10:30",
+            "taskId": "task-id-if-available",
+            "taskTitle": "Task title",
+            "type": "deep-work|meeting|admin|break|planning",
+            "notes": "Why this time slot"
+          }
+        ],
+        "tips": ["Tips for this specific day"],
+        "estimatedProductivity": 85
+      }
+    }
+  ],
+  "totalTasks": 25,
+  "totalEstimatedHours": 40,
+  "weeklyGoals": ["3-5 main goals for the week"],
+  "balanceScore": 85
+}
+
+Create plans for ${workDaysPerWeek} working days. Return valid JSON only.
+`;
+
+    try {
+      const response = await this.generateContent(prompt);
+
+      let jsonText = response.trim();
+      jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+
+      const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        return JSON.parse(jsonMatch[0]);
+      }
+
+      return JSON.parse(jsonText);
+    } catch (error) {
+      console.error('Weekly plan generation error:', error);
+      return null;
+    }
+  }
+
   async generateWorkspaceTemplate(userPrompt) {
     const prompt = `
 Generate a custom workspace template based on this user request:
