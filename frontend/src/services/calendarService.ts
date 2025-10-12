@@ -33,7 +33,8 @@ export const calendarService = {
       response_type: 'code',
       redirect_uri: config.redirectUri,
       scope: config.scopes.join(' '),
-      response_mode: 'query'
+      response_mode: 'query',
+      prompt: 'select_account'  // Force account selection every time
     });
 
     return `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params.toString()}`;
