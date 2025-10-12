@@ -17,8 +17,9 @@
    - **Supported account types**: Accounts in any organizational directory and personal Microsoft accounts
    - **Redirect URI**:
      - Type: `Web`
-     - URI: `https://your-domain.com/auth/outlook/callback`
-     - For local dev: `http://localhost:3000/auth/outlook/callback`
+     - Production URI: `https://aiwork-sooty.vercel.app/auth/outlook/callback`
+     - Local dev URI: `http://localhost:3000/auth/outlook/callback`
+     - **Note**: Add BOTH redirect URIs in Azure Portal under Authentication → Platform configurations → Web
 
 #### 2. Configure API Permissions
 
@@ -41,14 +42,27 @@
 
 **Frontend (.env):**
 ```bash
-REACT_APP_OUTLOOK_CLIENT_ID=your-client-id-here
+REACT_APP_OUTLOOK_CLIENT_ID=eb85eada-4442-446b-8df7-0a8316e49532
 ```
 
-**Backend (.env):**
+**Backend (.env) - Local:**
 ```bash
-OUTLOOK_CLIENT_ID=your-client-id-here
+OUTLOOK_CLIENT_ID=eb85eada-4442-446b-8df7-0a8316e49532
 OUTLOOK_CLIENT_SECRET=your-client-secret-here
-OUTLOOK_REDIRECT_URI=https://your-domain.com/auth/outlook/callback
+OUTLOOK_REDIRECT_URI=http://localhost:3000/auth/outlook/callback
+```
+
+**Backend (.env) - Production (Railway):**
+```bash
+OUTLOOK_CLIENT_ID=eb85eada-4442-446b-8df7-0a8316e49532
+OUTLOOK_CLIENT_SECRET=your-client-secret-here
+OUTLOOK_REDIRECT_URI=https://aiwork-sooty.vercel.app/auth/outlook/callback
+```
+
+**Vercel Environment Variables:**
+Add this in your Vercel project settings → Environment Variables:
+```bash
+REACT_APP_OUTLOOK_CLIENT_ID=eb85eada-4442-446b-8df7-0a8316e49532
 ```
 
 #### 5. Create Client Secret (Backend Only)
