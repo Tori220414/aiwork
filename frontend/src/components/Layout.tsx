@@ -5,12 +5,14 @@ import WorkspaceSwitcher from './WorkspaceSwitcher';
 import {
   LayoutDashboard,
   CheckSquare,
+  Brain,
   Bot,
   Layers,
   LogOut,
   Menu,
   X,
-  User
+  User,
+  CreditCard
 } from 'lucide-react';
 
 const Layout: React.FC = () => {
@@ -21,8 +23,10 @@ const Layout: React.FC = () => {
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Tasks', href: '/tasks', icon: CheckSquare },
+    { name: 'Brain Dump', href: '/brain-dump', icon: Brain },
     { name: 'AI Assistant', href: '/ai-assistant', icon: Bot },
     { name: 'Workspaces', href: '/workspaces', icon: Layers },
+    { name: 'Billing', href: '/billing', icon: CreditCard },
   ];
 
   return (

@@ -11,6 +11,8 @@ import Tasks from './pages/Tasks';
 import AIAssistant from './pages/AIAssistant';
 import Workspaces from './pages/Workspaces';
 import WorkspaceDetail from './pages/WorkspaceDetail';
+import Billing from './pages/Billing';
+import BrainDump from './pages/BrainDump';
 
 // Components
 import PrivateRoute from './components/PrivateRoute';
@@ -61,9 +63,11 @@ function App() {
         <Route element={<PrivateRoute><Layout /></PrivateRoute>}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/tasks" element={<Tasks />} />
+          <Route path="/brain-dump" element={<BrainDump />} />
           <Route path="/ai-assistant" element={<AIAssistant />} />
           <Route path="/workspaces" element={<Workspaces />} />
           <Route path="/workspaces/:id" element={<WorkspaceDetail />} />
+          <Route path="/billing" element={<Billing />} />
         </Route>
 
         <Route path="/" element={<Navigate to="/dashboard" />} />

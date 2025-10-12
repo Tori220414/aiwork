@@ -1,15 +1,63 @@
 import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useTaskStore } from '../store/useTaskStore';
 import { Task } from '../services/taskService';
 import { Plus, Filter, Search, Edit2, Trash2, CheckCircle2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const Tasks: React.FC = () => {
+  const location = useLocation();
   const { tasks, isLoading, fetchTasks, updateTask, deleteTask, createTask } = useTaskStore();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('');
   const [filterPriority, setFilterPriority] = useState<string>('');
+  const [isCreatingTasks, setIsCreatingTasks] = useState(false);
+
+  // Handle tasks from brain dump
+  useEffect(() => {
+    const tasksToCreate = (location.state as any)?.tasksToCreate;
+    if (tasksToCreate && tasksToCreate.length > 0) {
+      handleCreateTasksFromBrainDump(tasksToCreate);
+      // Clear the navigation state
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
+
+  const handleCreateTasksFromBrainDump = async (tasksToCreate: Task[]) => {
+    setIsCreatingTasks(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    try {
+      for (const task of tasksToCreate) {
+        try {
+          // Remove the _id and selected fields before creating
+          const { _id, selected, ...taskData } = task as any;
+          await createTask({
+            ...taskData,
+            aiGenerated: true
+          });
+          successCount++;
+        } catch (error) {
+          console.error('Error creating task:', error);
+          failCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`Successfully created ${successCount} task${successCount > 1 ? 's' : ''} from your brain dump!`);
+      }
+      if (failCount > 0) {
+        toast.error(`Failed to create ${failCount} task${failCount > 1 ? 's' : ''}`);
+      }
+
+      // Reload tasks after creating
+      loadTasks();
+    } finally {
+      setIsCreatingTasks(false);
+    }
+  };
 
   useEffect(() => {
     loadTasks();
@@ -135,9 +183,12 @@ const Tasks: React.FC = () => {
 
       {/* Tasks List */}
       <div className="card">
-        {isLoading ? (
-          <div className="flex items-center justify-center py-12">
+        {isLoading || isCreatingTasks ? (
+          <div className="flex flex-col items-center justify-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+            {isCreatingTasks && (
+              <p className="mt-4 text-gray-600">Creating tasks from your brain dump...</p>
+            )}
           </div>
         ) : tasks.length > 0 ? (
           <div className="space-y-3">
