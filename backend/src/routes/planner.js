@@ -110,13 +110,70 @@ router.post('/daily/generate-and-sync', async (req, res) => {
       return res.status(500).json({ message: 'Failed to generate daily plan' });
     }
 
+    // Parse the date in the user's timezone for both calendars
+    const [year, month, day] = (date || new Date().toISOString().split('T')[0]).split('-').map(Number);
+    const planDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+    // Check if a plan already exists for this date
+    const { data: existingPlan } = await supabase
+      .from('plans')
+      .select('id, plan_data')
+      .eq('user_id', userId)
+      .eq('plan_type', 'daily')
+      .eq('plan_date', planDate)
+      .single();
+
+    // If regenerating, delete old calendar events first
+    if (existingPlan) {
+      console.log('🔄 Found existing plan, will delete old calendar events');
+      const { data: oldEvents } = await supabase
+        .from('plan_events')
+        .select('*')
+        .eq('plan_id', existingPlan.id);
+
+      if (oldEvents && oldEvents.length > 0) {
+        // Delete old Outlook events
+        if (user.outlook_connected && syncToOutlook) {
+          const outlookAccessToken = await ensureValidOutlookToken(user);
+          for (const event of oldEvents) {
+            if (event.outlook_event_id) {
+              try {
+                await microsoftGraphService.deleteEvent(outlookAccessToken, event.outlook_event_id);
+                console.log('🗑️  Deleted old Outlook event:', event.outlook_event_id);
+              } catch (err) {
+                console.error('Failed to delete Outlook event:', err.message);
+              }
+            }
+          }
+        }
+
+        // Delete old Google Calendar events
+        if (user.google_connected && syncToGoogle) {
+          const googleAccessToken = await ensureValidGoogleToken(user);
+          for (const event of oldEvents) {
+            if (event.google_event_id) {
+              try {
+                await googleCalendarService.deleteEvent(googleAccessToken, event.google_event_id);
+                console.log('🗑️  Deleted old Google Calendar event:', event.google_event_id);
+              } catch (err) {
+                console.error('Failed to delete Google Calendar event:', err.message);
+              }
+            }
+          }
+        }
+
+        // Delete old event records
+        await supabase
+          .from('plan_events')
+          .delete()
+          .eq('plan_id', existingPlan.id);
+      }
+    }
+
     // Sync to calendars if enabled and connected
     let syncedEventsOutlook = [];
     let syncedEventsGoogle = [];
     let syncErrors = [];
-
-    // Parse the date in the user's timezone for both calendars
-    const [year, month, day] = (date || new Date().toISOString().split('T')[0]).split('-').map(Number);
 
     // Sync to Outlook if enabled
     if (syncToOutlook && user.outlook_connected) {
@@ -215,6 +272,96 @@ router.post('/daily/generate-and-sync', async (req, res) => {
     }
 
     const totalSynced = syncedEventsOutlook.length + syncedEventsGoogle.length;
+
+    // Save or update the plan in database
+    let savedPlanId;
+    if (existingPlan) {
+      // Update existing plan
+      await supabase
+        .from('plans')
+        .update({
+          plan_data: plan,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existingPlan.id);
+      savedPlanId = existingPlan.id;
+      console.log('✅ Updated existing plan:', savedPlanId);
+    } else {
+      // Create new plan
+      const { data: newPlan, error: planError } = await supabase
+        .from('plans')
+        .insert({
+          user_id: userId,
+          plan_type: 'daily',
+          plan_date: planDate,
+          plan_data: plan
+        })
+        .select()
+        .single();
+
+      if (planError) {
+        console.error('Failed to save plan:', planError);
+      } else {
+        savedPlanId = newPlan.id;
+        console.log('✅ Saved new plan:', savedPlanId);
+      }
+    }
+
+    // Save plan events to track calendar syncs
+    if (savedPlanId && totalSynced > 0) {
+      const eventRecords = [];
+
+      for (const event of syncedEventsOutlook) {
+        const block = plan.timeBlocks.find(b => b.taskTitle === event.taskTitle);
+        eventRecords.push({
+          plan_id: savedPlanId,
+          task_title: event.taskTitle,
+          start_time: new Date(`${planDate}T${event.startTime}:00`).toISOString(),
+          end_time: new Date(`${planDate}T${event.endTime}:00`).toISOString(),
+          event_type: block?.type || 'work',
+          notes: block?.notes,
+          outlook_event_id: event.outlookEventId,
+          synced_to_outlook: true,
+          synced_to_google: false
+        });
+      }
+
+      for (const event of syncedEventsGoogle) {
+        const block = plan.timeBlocks.find(b => b.taskTitle === event.taskTitle);
+        const existingRecord = eventRecords.find(r => r.task_title === event.taskTitle);
+
+        if (existingRecord) {
+          // Event synced to both calendars
+          existingRecord.google_event_id = event.googleEventId;
+          existingRecord.synced_to_google = true;
+        } else {
+          // Event only synced to Google
+          eventRecords.push({
+            plan_id: savedPlanId,
+            task_title: event.taskTitle,
+            start_time: new Date(`${planDate}T${event.startTime}:00`).toISOString(),
+            end_time: new Date(`${planDate}T${event.endTime}:00`).toISOString(),
+            event_type: block?.type || 'work',
+            notes: block?.notes,
+            google_event_id: event.googleEventId,
+            synced_to_outlook: false,
+            synced_to_google: true
+          });
+        }
+      }
+
+      if (eventRecords.length > 0) {
+        const { error: eventsError } = await supabase
+          .from('plan_events')
+          .insert(eventRecords);
+
+        if (eventsError) {
+          console.error('Failed to save plan events:', eventsError);
+        } else {
+          console.log('✅ Saved', eventRecords.length, 'plan event records');
+        }
+      }
+    }
 
     console.log('📊 Daily plan response:', {
       syncedToOutlook: syncedEventsOutlook.length > 0,
