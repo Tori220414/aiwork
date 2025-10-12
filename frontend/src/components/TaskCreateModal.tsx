@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 interface TaskCreateModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (taskData: any) => Promise<void>;
+  onSubmit: (taskData: any) => Promise<any>;
 }
 
 const TaskCreateModal: React.FC<TaskCreateModalProps> = ({ isOpen, onClose, onSubmit }) => {
