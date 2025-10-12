@@ -17,6 +17,7 @@ import BrainDump from './pages/BrainDump';
 import Profile from './pages/Profile';
 import WeeklyPlanner from './pages/WeeklyPlanner';
 import CalendarSettings from './pages/CalendarSettings';
+import OutlookCallback from './pages/OutlookCallback';
 
 // Components
 import PrivateRoute from './components/PrivateRoute';
@@ -64,6 +65,7 @@ function App() {
         <Route path="/register" element={
           isAuthenticated ? <Navigate to="/dashboard" /> : <Register />
         } />
+        <Route path="/auth/outlook/callback" element={<OutlookCallback />} />
 
         <Route element={<PrivateRoute><Layout /></PrivateRoute>}>
           <Route path="/dashboard" element={<Dashboard />} />
