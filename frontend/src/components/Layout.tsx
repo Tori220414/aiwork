@@ -29,6 +29,7 @@ const Layout: React.FC = () => {
     { name: 'Weekly Planner', href: '/weekly-planner', icon: CalendarDays },
     { name: 'AI Assistant', href: '/ai-assistant', icon: Bot },
     { name: 'Workspaces', href: '/workspaces', icon: Layers },
+    { name: 'Calendar', href: '/calendar', icon: CalendarDays },
     { name: 'Profile', href: '/profile', icon: Settings },
     { name: 'Billing', href: '/billing', icon: CreditCard },
   ];

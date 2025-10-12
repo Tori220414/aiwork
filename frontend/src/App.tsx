@@ -16,6 +16,7 @@ import Billing from './pages/Billing';
 import BrainDump from './pages/BrainDump';
 import Profile from './pages/Profile';
 import WeeklyPlanner from './pages/WeeklyPlanner';
+import CalendarSettings from './pages/CalendarSettings';
 
 // Components
 import PrivateRoute from './components/PrivateRoute';
@@ -73,6 +74,7 @@ function App() {
           <Route path="/workspaces" element={<Workspaces />} />
           <Route path="/workspaces/:id" element={<WorkspaceDetail />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/calendar" element={<CalendarSettings />} />
           <Route path="/billing" element={<Billing />} />
         </Route>
 

@@ -4,6 +4,7 @@ import { useTaskStore } from '../store/useTaskStore';
 import { Task } from '../services/taskService';
 import { Plus, Filter, Search, Edit2, Trash2, CheckCircle2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import TaskCreateModal from '../components/TaskCreateModal';
 
 const Tasks: React.FC = () => {
   const location = useLocation();
@@ -292,23 +293,12 @@ const Tasks: React.FC = () => {
         )}
       </div>
 
-      {/* Create Task Modal - Simplified for now */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full">
-            <h2 className="text-xl font-bold mb-4">Create New Task</h2>
-            <p className="text-gray-600 mb-4">
-              Use the AI Assistant page to create tasks with AI, or this feature will be enhanced in the next update!
-            </p>
-            <button
-              onClick={() => setShowCreateModal(false)}
-              className="btn btn-primary w-full"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Create Task Modal */}
+      <TaskCreateModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSubmit={createTask}
+      />
     </div>
   );
 };
