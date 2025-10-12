@@ -128,7 +128,9 @@ const Tasks: React.FC = () => {
       let failCount = 0;
 
       try {
-        for (const taskId of selectedTasks) {
+        // Convert Set to Array for iteration
+        const taskIds = Array.from(selectedTasks);
+        for (const taskId of taskIds) {
           try {
             await deleteTask(taskId);
             successCount++;
