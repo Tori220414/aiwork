@@ -18,6 +18,7 @@ const workspaceRoutes = require('./routes/workspaces');
 const eventRoutes = require('./routes/events');
 const subscriptionRoutes = require('./routes/subscription');
 const userRoutes = require('./routes/users');
+const calendarRoutes = require('./routes/calendar');
 
 // Initialize Express app
 const app = express();
@@ -104,6 +105,7 @@ app.use('/api/workspaces', workspaceRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/subscription', subscriptionRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/calendar', calendarRoutes);
 
 // Root route
 app.get('/', (req, res) => {
@@ -117,7 +119,8 @@ app.get('/', (req, res) => {
       ai: '/api/ai',
       dashboard: '/api/dashboard',
       workspaces: '/api/workspaces',
-      events: '/api/events'
+      events: '/api/events',
+      calendar: '/api/calendar'
     }
   });
 });

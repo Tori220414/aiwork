@@ -77,6 +77,14 @@ const userSchema = new mongoose.Schema({
     longestStreak: { type: Number, default: 0 },
     lastActiveDate: { type: Date }
   },
+  outlookCalendar: {
+    connected: { type: Boolean, default: false },
+    email: { type: String },
+    accessToken: { type: String, select: false },
+    refreshToken: { type: String, select: false },
+    tokenExpiresAt: { type: Date },
+    lastSyncedAt: { type: Date }
+  },
   lastLogin: {
     type: Date
   },
