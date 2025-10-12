@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const { getSupabase } = require('../config/supabase');
-const { generateToken, protect } = require('../middleware/auth');
+const { generateToken, protect } = require('../middleware/auth-supabase');
 
 // @route   POST /api/auth/register
 // @desc    Register new user
