@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const { getSupabase } = require('../config/supabase');
 
 // Protect routes - verify JWT token
 const protect = async (req, res, next) => {
@@ -14,17 +14,27 @@ const protect = async (req, res, next) => {
       // Verify token
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-      // Get user from token (exclude password)
-      req.user = await User.findById(decoded.id).select('-password');
+      const supabase = getSupabase();
+      if (!supabase) {
+        return res.status(500).json({ message: 'Database connection not available' });
+      }
 
-      if (!req.user) {
+      // Get user from token (exclude password)
+      const { data: user, error } = await supabase
+        .from('users')
+        .select('id, name, email, role, avatar, preferences, is_active, created_at, last_login')
+        .eq('id', decoded.id)
+        .single();
+
+      if (error || !user) {
         return res.status(401).json({ message: 'User not found' });
       }
 
-      if (!req.user.isActive) {
+      if (!user.is_active) {
         return res.status(403).json({ message: 'User account is deactivated' });
       }
 
+      req.user = user;
       next();
     } catch (error) {
       console.error('Auth middleware error:', error);

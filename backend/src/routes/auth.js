@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const User = require('../models/User');
+const { getSupabase } = require('../config/supabase');
+const bcrypt = require('bcryptjs');
 const { generateToken, protect } = require('../middleware/auth');
 
 // @route   POST /api/auth/register
@@ -15,26 +16,52 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ message: 'Please provide all required fields' });
     }
 
+    const supabase = getSupabase();
+    if (!supabase) {
+      return res.status(500).json({ message: 'Database connection not available' });
+    }
+
     // Check if user already exists
-    const userExists = await User.findOne({ email });
-    if (userExists) {
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', email)
+      .single();
+
+    if (existingUser) {
       return res.status(400).json({ message: 'User already exists with this email' });
     }
 
-    // Create user
-    const user = await User.create({
-      name,
-      email,
-      password
-    });
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Create user in Supabase
+    const { data: user, error } = await supabase
+      .from('users')
+      .insert([{
+        name,
+        email,
+        password: hashedPassword,
+        role: 'user',
+        is_active: true,
+        created_at: new Date().toISOString()
+      }])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Supabase insert error:', error);
+      return res.status(400).json({ message: 'Failed to create user' });
+    }
 
     if (user) {
       res.status(201).json({
-        _id: user._id,
+        id: user.id,
         name: user.name,
         email: user.email,
         role: user.role,
-        token: generateToken(user._id)
+        token: generateToken(user.id)
       });
     } else {
       res.status(400).json({ message: 'Invalid user data' });
@@ -57,37 +84,48 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Please provide email and password' });
     }
 
-    // Find user and include password field
-    const user = await User.findOne({ email }).select('+password');
+    const supabase = getSupabase();
+    if (!supabase) {
+      return res.status(500).json({ message: 'Database connection not available' });
+    }
 
-    if (!user) {
+    // Find user
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .single();
+
+    if (error || !user) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
     // Check if user is active
-    if (!user.isActive) {
+    if (!user.is_active) {
       return res.status(403).json({ message: 'Account is deactivated' });
     }
 
     // Check password
-    const isPasswordMatch = await user.comparePassword(password);
+    const isPasswordMatch = await bcrypt.compare(password, user.password);
 
     if (!isPasswordMatch) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
     // Update last login
-    user.lastLogin = new Date();
-    await user.save();
+    await supabase
+      .from('users')
+      .update({ last_login: new Date().toISOString() })
+      .eq('id', user.id);
 
     res.json({
-      _id: user._id,
+      id: user.id,
       name: user.name,
       email: user.email,
       role: user.role,
       avatar: user.avatar,
       preferences: user.preferences,
-      token: generateToken(user._id)
+      token: generateToken(user.id)
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -100,7 +138,21 @@ router.post('/login', async (req, res) => {
 // @access  Private
 router.get('/me', protect, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
+    const supabase = getSupabase();
+    if (!supabase) {
+      return res.status(500).json({ message: 'Database connection not available' });
+    }
+
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('id, name, email, role, avatar, preferences, is_active, created_at, last_login')
+      .eq('id', req.user.id)
+      .single();
+
+    if (error || !user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
     res.json(user);
   } catch (error) {
     console.error('Get profile error:', error);
@@ -113,24 +165,43 @@ router.get('/me', protect, async (req, res) => {
 // @access  Private
 router.put('/profile', protect, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
-
-    if (user) {
-      user.name = req.body.name || user.name;
-      user.avatar = req.body.avatar || user.avatar;
-
-      if (req.body.preferences) {
-        user.preferences = {
-          ...user.preferences,
-          ...req.body.preferences
-        };
-      }
-
-      const updatedUser = await user.save();
-      res.json(updatedUser);
-    } else {
-      res.status(404).json({ message: 'User not found' });
+    const supabase = getSupabase();
+    if (!supabase) {
+      return res.status(500).json({ message: 'Database connection not available' });
     }
+
+    const { data: user, error: fetchError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', req.user.id)
+      .single();
+
+    if (fetchError || !user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const updates = {};
+    if (req.body.name) updates.name = req.body.name;
+    if (req.body.avatar) updates.avatar = req.body.avatar;
+    if (req.body.preferences) {
+      updates.preferences = {
+        ...user.preferences,
+        ...req.body.preferences
+      };
+    }
+
+    const { data: updatedUser, error: updateError } = await supabase
+      .from('users')
+      .update(updates)
+      .eq('id', req.user.id)
+      .select()
+      .single();
+
+    if (updateError) {
+      return res.status(500).json({ message: 'Failed to update profile' });
+    }
+
+    res.json(updatedUser);
   } catch (error) {
     console.error('Update profile error:', error);
     res.status(500).json({ message: 'Server error' });
