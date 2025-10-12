@@ -291,15 +291,28 @@ router.get('/outlook/events', async (req, res) => {
     // Ensure valid access token
     const accessToken = await ensureValidAccessToken(user);
 
-    // Default to next 30 days
-    const start = startDate ? new Date(startDate) : new Date();
+    // Default to last 7 days and next 30 days to catch timezone-shifted events
+    const start = startDate ? new Date(startDate) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const end = endDate ? new Date(endDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+    console.log('📅 Fetching Outlook events from', start.toISOString(), 'to', end.toISOString());
 
     const events = await microsoftGraphService.getEvents(accessToken, start, end);
 
+    console.log('📅 Found', events.length, 'events in Outlook');
+
+    // Log events with [Plan] prefix
+    const planEvents = events.filter(e => e.title?.includes('[Plan]') || e.title?.includes('[Monday]') || e.title?.includes('[Tuesday]'));
+    console.log('📅 Found', planEvents.length, 'plan events');
+    planEvents.forEach(e => {
+      console.log('  -', e.title, '@', new Date(e.startTime).toLocaleString());
+    });
+
     res.json({
       success: true,
-      events
+      events,
+      totalCount: events.length,
+      planEventsCount: planEvents.length
     });
   } catch (error) {
     console.error('Error getting Outlook events:', error);
