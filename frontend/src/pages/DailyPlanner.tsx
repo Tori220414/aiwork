@@ -184,12 +184,10 @@ const DailyPlanner: React.FC = () => {
             <div className="bg-gradient-to-r from-blue-500 to-cyan-600 text-white rounded-lg shadow-lg p-6">
               <h3 className="text-xl font-bold mb-2">Daily Summary</h3>
               <p className="text-blue-100">{dailyPlan.summary}</p>
-              {dailyPlan.totalTasks && (
-                <div className="mt-4 inline-block bg-white/10 backdrop-blur rounded-lg px-4 py-2">
-                  <p className="text-sm text-blue-100">Total Tasks</p>
-                  <p className="text-2xl font-bold">{dailyPlan.totalTasks}</p>
-                </div>
-              )}
+              <div className="mt-4 inline-block bg-white/10 backdrop-blur rounded-lg px-4 py-2">
+                <p className="text-sm text-blue-100">Time Blocks</p>
+                <p className="text-2xl font-bold">{dailyPlan.timeBlocks?.length || 0}</p>
+              </div>
             </div>
           )}
 
