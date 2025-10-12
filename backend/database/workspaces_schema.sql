@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS workspace_templates (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR(255) NOT NULL,
   description TEXT,
-  category VARCHAR(100), -- personal, work, team, ndis, custom
+  category VARCHAR(100), -- personal, work, team, education, health, finance, custom
 
   -- Template configuration
   default_view VARCHAR(50) DEFAULT 'kanban',
@@ -132,18 +132,6 @@ VALUES
     'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     '#667eea',
     '[{"view_type": "kanban", "name": "My Tasks", "config": {"columns": [{"id": "pending", "title": "To Do"}, {"id": "in-progress", "title": "In Progress"}, {"id": "completed", "title": "Done"}]}}]'
-  ),
-  (
-    'NDIS Plan Management',
-    'Workspace designed for managing NDIS plans and approvals',
-    'ndis',
-    true,
-    'kanban',
-    'light',
-    'gradient',
-    'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-    '#f093fb',
-    '[{"view_type": "kanban", "name": "NDIS Workflow", "config": {"columns": [{"id": "pending", "title": "Pending Review"}, {"id": "in-progress", "title": "Under Review"}, {"id": "approved", "title": "Approved"}, {"id": "completed", "title": "Completed"}]}}, {"view_type": "calendar", "name": "Plan Schedule", "config": {"dateField": "due_date", "viewMode": "month"}}]'
   ),
   (
     'Team Project',

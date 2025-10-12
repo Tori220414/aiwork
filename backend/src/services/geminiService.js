@@ -404,7 +404,7 @@ Create a comprehensive workspace template as valid JSON (no markdown):
 {
   "name": "Workspace Name (2-4 words)",
   "description": "Clear description of workspace purpose and use case",
-  "category": "personal|work|team|ndis|education|health|finance|custom",
+  "category": "personal|work|team|education|health|finance|custom",
   "default_view": "kanban|list|calendar|timeline",
   "theme": "light|dark",
   "background_type": "color|gradient",
