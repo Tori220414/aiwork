@@ -15,7 +15,8 @@ const DailyPlanner: React.FC = () => {
 
   useEffect(() => {
     checkCalendarConnections();
-  }, []);
+    loadExistingPlan();
+  }, [selectedDate]);
 
   const checkCalendarConnections = async () => {
     try {
@@ -27,6 +28,21 @@ const DailyPlanner: React.FC = () => {
       setGoogleConnected(google.connected);
     } catch (error) {
       console.error('Failed to check calendar connections:', error);
+    }
+  };
+
+  const loadExistingPlan = async () => {
+    try {
+      const dateStr = formatDate(selectedDate);
+      const response = await plannerService.getExistingDailyPlan(dateStr);
+      if (response.plan && response.plan.plan_data) {
+        setDailyPlan(response.plan.plan_data);
+      } else {
+        setDailyPlan(null);
+      }
+    } catch (error) {
+      console.error('Failed to load existing plan:', error);
+      setDailyPlan(null);
     }
   };
 
@@ -87,12 +103,12 @@ const DailyPlanner: React.FC = () => {
   const navigateDay = (direction: 'prev' | 'next') => {
     const newDate = addDays(selectedDate, direction === 'next' ? 1 : -1);
     setSelectedDate(newDate);
-    setDailyPlan(null);
+    // Don't clear plan - let useEffect load it
   };
 
   const goToToday = () => {
     setSelectedDate(new Date());
-    setDailyPlan(null);
+    // Don't clear plan - let useEffect load it
   };
 
   const isToday = () => {
@@ -211,12 +227,19 @@ const DailyPlanner: React.FC = () => {
             ) : (
               <>
                 <Sparkles className="w-5 h-5 mr-2" />
-                {(syncToOutlook && outlookConnected) || (syncToGoogle && googleConnected)
+                {dailyPlan
+                  ? 'Regenerate & Update Calendar'
+                  : (syncToOutlook && outlookConnected) || (syncToGoogle && googleConnected)
                   ? 'Generate & Sync to Calendar'
                   : 'Generate AI Daily Plan'}
               </>
             )}
           </button>
+          {dailyPlan && (
+            <p className="text-xs text-center text-gray-500 mt-2">
+              Plan already exists for this date. Clicking will regenerate and update calendar events.
+            </p>
+          )}
         </div>
       </div>
 

@@ -23,6 +23,32 @@ export interface PlanResponse {
 
 export const plannerService = {
   /**
+   * Get existing daily plan for a specific date
+   */
+  async getExistingDailyPlan(date: string): Promise<{ success: boolean; plan: any }> {
+    try {
+      const response = await api.get(`/planner/daily/${date}`);
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.message || 'Failed to fetch daily plan');
+    }
+  },
+
+  /**
+   * Get all plans for a date range
+   */
+  async getPlansInRange(startDate: string, endDate: string): Promise<{ success: boolean; plans: any[] }> {
+    try {
+      const response = await api.get('/planner/plans/range', {
+        params: { startDate, endDate }
+      });
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.message || 'Failed to fetch plans');
+    }
+  },
+
+  /**
    * Generate and optionally sync daily plan to calendars
    */
   async generateDailyPlan(date?: string, syncToOutlook = false, syncToGoogle = false): Promise<PlanResponse> {

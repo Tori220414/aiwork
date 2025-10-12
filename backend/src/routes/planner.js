@@ -526,4 +526,70 @@ router.post('/weekly/generate-and-sync', async (req, res) => {
   }
 });
 
+/**
+ * Get existing daily plan for a specific date
+ */
+router.get('/daily/:date', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { date } = req.params;
+    const supabase = getSupabase();
+
+    const { data: plan, error } = await supabase
+      .from('plans')
+      .select('*, plan_events(*)')
+      .eq('user_id', userId)
+      .eq('plan_type', 'daily')
+      .eq('plan_date', date)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      console.error('Error fetching plan:', error);
+      return res.status(500).json({ message: 'Failed to fetch plan' });
+    }
+
+    if (!plan) {
+      return res.json({ success: true, plan: null });
+    }
+
+    res.json({ success: true, plan });
+  } catch (error) {
+    console.error('Get daily plan error:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+/**
+ * Get all plans for a date range (for calendar view)
+ */
+router.get('/plans/range', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { startDate, endDate } = req.query;
+    const supabase = getSupabase();
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({ message: 'startDate and endDate required' });
+    }
+
+    const { data: plans, error } = await supabase
+      .from('plans')
+      .select('id, plan_type, plan_date, plan_data, created_at, updated_at')
+      .eq('user_id', userId)
+      .gte('plan_date', startDate)
+      .lte('plan_date', endDate)
+      .order('plan_date', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching plans:', error);
+      return res.status(500).json({ message: 'Failed to fetch plans' });
+    }
+
+    res.json({ success: true, plans: plans || [] });
+  } catch (error) {
+    console.error('Get plans range error:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
 module.exports = router;
