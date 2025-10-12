@@ -114,8 +114,10 @@ router.post('/daily/generate-and-sync', async (req, res) => {
     const [year, month, day] = (date || new Date().toISOString().split('T')[0]).split('-').map(Number);
     const planDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
+    console.log('📅 Looking for existing plan for date:', planDate, 'user:', userId);
+
     // Check if a plan already exists for this date
-    const { data: existingPlan } = await supabase
+    const { data: existingPlan, error: planLookupError } = await supabase
       .from('plans')
       .select('id, plan_data')
       .eq('user_id', userId)
@@ -123,13 +125,25 @@ router.post('/daily/generate-and-sync', async (req, res) => {
       .eq('plan_date', planDate)
       .single();
 
+    if (planLookupError && planLookupError.code !== 'PGRST116') {
+      console.error('❌ Error looking up existing plan:', planLookupError);
+    }
+
+    console.log('🔍 Existing plan lookup result:', existingPlan ? `Found plan ${existingPlan.id}` : 'No existing plan');
+
     // If regenerating, delete old calendar events first
     if (existingPlan) {
-      console.log('🔄 Found existing plan, will delete old calendar events');
-      const { data: oldEvents } = await supabase
+      console.log('🔄 Found existing plan, will delete old calendar events for plan:', existingPlan.id);
+      const { data: oldEvents, error: eventsError } = await supabase
         .from('plan_events')
         .select('*')
         .eq('plan_id', existingPlan.id);
+
+      if (eventsError) {
+        console.error('❌ Error fetching old events:', eventsError);
+      }
+
+      console.log('🔍 Found', oldEvents?.length || 0, 'old events to delete');
 
       if (oldEvents && oldEvents.length > 0) {
         // Delete old Outlook events
