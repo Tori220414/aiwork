@@ -82,12 +82,15 @@ router.post('/daily/generate-and-sync', async (req, res) => {
     let syncedEvents = [];
     if (syncToOutlook && user.outlook_connected) {
       try {
+        console.log('🔵 Syncing daily plan to Outlook for user:', user.outlook_email);
         const accessToken = await ensureValidOutlookToken(user);
         const planDate = date ? new Date(date) : new Date();
+        console.log('🔵 Plan has', plan.timeBlocks.length, 'time blocks for date:', planDate);
 
         // Create calendar events for each time block
         for (const block of plan.timeBlocks) {
           if (block.type === 'break' || !block.taskTitle) continue;
+          console.log('🔵 Creating event:', block.taskTitle, block.startTime, '-', block.endTime);
 
           const [startHour, startMin] = block.startTime.split(':');
           const [endHour, endMin] = block.endTime.split(':');
@@ -106,6 +109,7 @@ router.post('/daily/generate-and-sync', async (req, res) => {
           };
 
           const createdEvent = await microsoftGraphService.createEvent(accessToken, event);
+          console.log('✅ Event created:', createdEvent.id);
           syncedEvents.push({
             taskTitle: block.taskTitle,
             startTime: block.startTime,
@@ -113,8 +117,10 @@ router.post('/daily/generate-and-sync', async (req, res) => {
             outlookEventId: createdEvent.id
           });
         }
+        console.log('✅ Successfully synced', syncedEvents.length, 'events to Outlook');
       } catch (syncError) {
-        console.error('Outlook sync error:', syncError);
+        console.error('❌ Outlook sync error:', syncError.message);
+        console.error('Full error:', syncError);
         // Continue even if sync fails - return plan anyway
         return res.json({
           success: true,
@@ -125,6 +131,11 @@ router.post('/daily/generate-and-sync', async (req, res) => {
         });
       }
     }
+
+    console.log('📊 Daily plan response:', {
+      syncedToOutlook: syncedEvents.length > 0,
+      eventCount: syncedEvents.length
+    });
 
     res.json({
       success: true,
@@ -188,11 +199,14 @@ router.post('/weekly/generate-and-sync', async (req, res) => {
     let syncedEvents = [];
     if (syncToOutlook && user.outlook_connected) {
       try {
+        console.log('🔵 Syncing weekly plan to Outlook for user:', user.outlook_email);
         const accessToken = await ensureValidOutlookToken(user);
+        console.log('🔵 Weekly plan has', plan.days.length, 'days');
 
         // Create calendar events for each day's time blocks
         for (const day of plan.days) {
           const dayDate = new Date(day.date);
+          console.log('🔵 Processing day:', day.dayName, dayDate);
 
           for (const block of day.plan.timeBlocks) {
             if (block.type === 'break' || !block.taskTitle) continue;
@@ -214,6 +228,7 @@ router.post('/weekly/generate-and-sync', async (req, res) => {
             };
 
             const createdEvent = await microsoftGraphService.createEvent(accessToken, event);
+            console.log('✅ Event created:', createdEvent.id, '/', block.taskTitle);
             syncedEvents.push({
               day: day.dayName,
               taskTitle: block.taskTitle,
@@ -223,8 +238,10 @@ router.post('/weekly/generate-and-sync', async (req, res) => {
             });
           }
         }
+        console.log('✅ Successfully synced', syncedEvents.length, 'events to Outlook');
       } catch (syncError) {
-        console.error('Outlook sync error:', syncError);
+        console.error('❌ Outlook sync error:', syncError.message);
+        console.error('Full error:', syncError);
         // Continue even if sync fails - return plan anyway
         return res.json({
           success: true,
@@ -235,6 +252,11 @@ router.post('/weekly/generate-and-sync', async (req, res) => {
         });
       }
     }
+
+    console.log('📊 Weekly plan response:', {
+      syncedToOutlook: syncedEvents.length > 0,
+      eventCount: syncedEvents.length
+    });
 
     res.json({
       success: true,
