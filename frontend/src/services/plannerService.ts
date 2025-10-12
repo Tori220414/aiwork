@@ -1,7 +1,7 @@
 import api from './api';
-import { DailyPlan, WeeklyPlan } from './aiService';
+import type { DailyPlan, WeeklyPlan } from './aiService';
 
-export { DailyPlan, WeeklyPlan };
+export type { DailyPlan, WeeklyPlan };
 
 export interface SyncedEvent {
   taskTitle: string;
