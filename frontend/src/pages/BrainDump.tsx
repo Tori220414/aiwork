@@ -19,8 +19,7 @@ const BrainDump: React.FC = () => {
   const [isListening, setIsListening] = useState(false);
   const [isSupported, setIsSupported] = useState(true);
   const recognitionRef = useRef<any>(null);
-  const lastProcessedIndexRef = useRef<number>(0);
-  const processedTranscriptsRef = useRef<Set<string>>(new Set());
+  const fullTranscriptRef = useRef<string>('');
 
   const handleExtractTasks = async () => {
     if (!dumpText.trim()) {
@@ -121,26 +120,30 @@ const BrainDump: React.FC = () => {
 
     recognition.onstart = () => {
       setIsListening(true);
-      lastProcessedIndexRef.current = 0;
-      processedTranscriptsRef.current.clear(); // Clear processed transcripts when starting
+      fullTranscriptRef.current = ''; // Reset accumulated transcript
       toast.success('Voice recording started. Speak now!', { icon: '🎤' });
     };
 
     recognition.onresult = (event: any) => {
-      // Mobile browsers may fire this multiple times for the same result
-      // Use a Set to track exact transcripts we've already added
-      for (let i = lastProcessedIndexRef.current; i < event.results.length; i++) {
-        const result = event.results[i];
-        if (result.isFinal) {
-          const transcript = result[0].transcript.trim();
+      // Build the complete current transcript from all final results
+      let currentFullTranscript = '';
 
-          // Only add if we haven't seen this exact transcript before
-          if (!processedTranscriptsRef.current.has(transcript)) {
-            processedTranscriptsRef.current.add(transcript);
-            setDumpText(prev => prev + transcript + ' ');
-          }
+      for (let i = 0; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          currentFullTranscript += event.results[i][0].transcript + ' ';
+        }
+      }
 
-          lastProcessedIndexRef.current = i + 1;
+      currentFullTranscript = currentFullTranscript.trim();
+
+      // Only add the new part that we haven't seen before
+      if (currentFullTranscript && currentFullTranscript !== fullTranscriptRef.current) {
+        // Calculate what's new by removing what we've already processed
+        const newText = currentFullTranscript.substring(fullTranscriptRef.current.length).trim();
+
+        if (newText) {
+          setDumpText(prev => prev + newText + ' ');
+          fullTranscriptRef.current = currentFullTranscript;
         }
       }
     };
@@ -160,8 +163,7 @@ const BrainDump: React.FC = () => {
 
     recognition.onend = () => {
       setIsListening(false);
-      lastProcessedIndexRef.current = 0;
-      processedTranscriptsRef.current.clear(); // Reset when recognition ends
+      fullTranscriptRef.current = ''; // Reset when recognition ends
     };
 
     recognitionRef.current = recognition;
@@ -182,13 +184,11 @@ const BrainDump: React.FC = () => {
     if (isListening) {
       recognitionRef.current?.stop();
       setIsListening(false);
-      lastProcessedIndexRef.current = 0;
-      processedTranscriptsRef.current.clear(); // Reset on manual stop
+      fullTranscriptRef.current = ''; // Reset on manual stop
       toast.success('Voice recording stopped', { icon: '⏸️' });
     } else {
       try {
-        lastProcessedIndexRef.current = 0;
-        processedTranscriptsRef.current.clear(); // Reset before starting
+        fullTranscriptRef.current = ''; // Reset before starting
         recognitionRef.current?.start();
       } catch (error) {
         console.error('Error starting recognition:', error);
