@@ -87,6 +87,7 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     environment: process.env.NODE_ENV,
+    version: '1.0.1',
     services: {
       supabase: !!process.env.SUPABASE_URL,
       gemini: !!process.env.GEMINI_API_KEY
