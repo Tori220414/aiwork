@@ -18,6 +18,13 @@ const initializeGemini = () => {
   }
 };
 
+const getGemini = () => {
+  if (!genAI) {
+    genAI = initializeGemini();
+  }
+  return genAI;
+};
+
 const getGeminiModel = (modelName = 'gemini-pro') => {
   if (!genAI) {
     genAI = initializeGemini();
@@ -32,5 +39,6 @@ const getGeminiModel = (modelName = 'gemini-pro') => {
 
 module.exports = {
   initializeGemini,
+  getGemini,
   getGeminiModel
 };
