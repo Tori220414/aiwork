@@ -185,12 +185,105 @@ const InvoiceManager: React.FC<InvoiceManagerProps> = ({ workspaceId }) => {
 
   const updateStatus = async (invoice: Invoice, status: Invoice['status']) => {
     try {
-      await api.put(`/workspaces/${workspaceId}/invoices/${invoice._id || invoice.id}`, { status });
+      await api.put(`/workspaces/${workspaceId}/invoices/${invoice._id || invoice.id}`, {
+        ...invoice,
+        status
+      });
       toast.success('Invoice status updated');
       fetchInvoices();
     } catch (error: any) {
       toast.error('Failed to update status');
     }
+  };
+
+  const downloadInvoice = (invoice: Invoice) => {
+    // Create a simple HTML invoice
+    const invoiceHTML = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 40px; }
+          .header { text-align: center; margin-bottom: 40px; }
+          .invoice-details { margin-bottom: 30px; }
+          .invoice-details div { margin: 5px 0; }
+          table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+          th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+          th { background-color: #f8f9fa; }
+          .totals { text-align: right; margin-top: 20px; }
+          .totals div { margin: 10px 0; }
+          .total-amount { font-size: 18px; font-weight: bold; }
+          .status { display: inline-block; padding: 5px 15px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+          .status-draft { background: #e5e7eb; color: #374151; }
+          .status-sent { background: #dbeafe; color: #1e40af; }
+          .status-paid { background: #d1fae5; color: #065f46; }
+          .status-overdue { background: #fee2e2; color: #991b1b; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>INVOICE</h1>
+          <h2>${invoice.invoice_number}</h2>
+          <span class="status status-${invoice.status}">${invoice.status.toUpperCase()}</span>
+        </div>
+
+        <div class="invoice-details">
+          <div><strong>Bill To:</strong></div>
+          <div>${invoice.client_name}</div>
+          ${invoice.client_email ? `<div>${invoice.client_email}</div>` : ''}
+          ${invoice.client_address ? `<div>${invoice.client_address}</div>` : ''}
+          <div style="margin-top: 20px;"><strong>Issue Date:</strong> ${new Date(invoice.issue_date).toLocaleDateString()}</div>
+          <div><strong>Due Date:</strong> ${new Date(invoice.due_date).toLocaleDateString()}</div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Description</th>
+              <th>Quantity</th>
+              <th>Rate</th>
+              <th>Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${invoice.items.map(item => `
+              <tr>
+                <td>${item.description}</td>
+                <td>${item.quantity}</td>
+                <td>$${item.rate.toFixed(2)}</td>
+                <td>$${item.amount.toFixed(2)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+
+        <div class="totals">
+          <div>Subtotal: $${invoice.subtotal.toFixed(2)}</div>
+          <div>Tax (${invoice.tax_rate}%): $${invoice.tax_amount.toFixed(2)}</div>
+          <div class="total-amount">Total: $${invoice.total.toFixed(2)}</div>
+        </div>
+
+        ${invoice.notes ? `
+          <div style="margin-top: 40px;">
+            <strong>Notes:</strong>
+            <p>${invoice.notes}</p>
+          </div>
+        ` : ''}
+      </body>
+      </html>
+    `;
+
+    // Create blob and download
+    const blob = new Blob([invoiceHTML], { type: 'text/html' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${invoice.invoice_number}.html`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+    toast.success('Invoice downloaded');
   };
 
   const getStatusColor = (status: string) => {
@@ -442,14 +535,23 @@ const InvoiceManager: React.FC<InvoiceManagerProps> = ({ workspaceId }) => {
                     <p className="text-2xl font-bold text-gray-900">${invoice.total.toFixed(2)}</p>
                     <div className="flex items-center gap-2 mt-2">
                       <button
+                        onClick={() => downloadInvoice(invoice)}
+                        className="p-2 text-green-600 hover:bg-green-50 rounded-lg"
+                        title="Download Invoice"
+                      >
+                        <Download className="w-4 h-4" />
+                      </button>
+                      <button
                         onClick={() => handleEdit(invoice)}
                         className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                        title="Edit Invoice"
                       >
                         <Edit className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleDelete(invoice)}
                         className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                        title="Delete Invoice"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
