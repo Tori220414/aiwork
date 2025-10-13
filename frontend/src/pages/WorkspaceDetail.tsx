@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Grid, List, Calendar, TrendingUp, Plus, FileText, Pencil, ShoppingCart, Package, Trash2, Users, DollarSign, ClipboardCheck, BookOpen } from 'lucide-react';
+import { ArrowLeft, Grid, List, Calendar, TrendingUp, Plus, FileText, Pencil, ShoppingCart, Package, Trash2, Users, DollarSign, ClipboardCheck, BookOpen, ListChecks, BarChart3 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
 import CalendarView from '../components/CalendarView';
@@ -14,6 +14,8 @@ import Rosters from '../components/hospitality/Rosters';
 import DailyTakings from '../components/hospitality/DailyTakings';
 import Templates from '../components/compliance/Templates';
 import SavedTemplates from '../components/compliance/SavedTemplates';
+import ActiveChecklists from '../components/compliance/ActiveChecklists';
+import Reports from '../components/compliance/Reports';
 import type { EventFormData } from '../components/EventModal';
 
 interface Workspace {
@@ -97,7 +99,7 @@ const WorkspaceDetail: React.FC = () => {
       // Set default view based on workspace type
       const workspaceName = response.data.name?.toLowerCase() || '';
       if (workspaceName.includes('compliance') || workspaceName.includes('checklist')) {
-        setCurrentView('templates');
+        setCurrentView('active');
       } else {
         setCurrentView(response.data.default_view || 'kanban');
       }
@@ -208,6 +210,8 @@ const WorkspaceDetail: React.FC = () => {
       case 'takings': return <DollarSign className="w-4 h-4" />;
       case 'templates': return <ClipboardCheck className="w-4 h-4" />;
       case 'saved': return <BookOpen className="w-4 h-4" />;
+      case 'active': return <ListChecks className="w-4 h-4" />;
+      case 'reports': return <BarChart3 className="w-4 h-4" />;
       default: return <Grid className="w-4 h-4" />;
     }
   };
@@ -521,6 +525,17 @@ const WorkspaceDetail: React.FC = () => {
           {isComplianceWorkspace() && (
             <>
               <button
+                onClick={() => setCurrentView('active')}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                  currentView === 'active'
+                    ? 'bg-primary-50 text-primary-700'
+                    : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                {getViewIcon('active')}
+                <span className="capitalize text-sm font-medium">Active</span>
+              </button>
+              <button
                 onClick={() => setCurrentView('templates')}
                 className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
                   currentView === 'templates'
@@ -541,6 +556,17 @@ const WorkspaceDetail: React.FC = () => {
               >
                 {getViewIcon('saved')}
                 <span className="capitalize text-sm font-medium">Saved</span>
+              </button>
+              <button
+                onClick={() => setCurrentView('reports')}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                  currentView === 'reports'
+                    ? 'bg-primary-50 text-primary-700'
+                    : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                {getViewIcon('reports')}
+                <span className="capitalize text-sm font-medium">Reports</span>
               </button>
             </>
           )}
@@ -599,11 +625,17 @@ const WorkspaceDetail: React.FC = () => {
         {currentView === 'takings' && isHospitalityWorkspace() && (
           <DailyTakings workspaceId={id || ''} />
         )}
+        {currentView === 'active' && isComplianceWorkspace() && (
+          <ActiveChecklists workspaceId={id || ''} />
+        )}
         {currentView === 'templates' && isComplianceWorkspace() && (
           <Templates workspaceId={id || ''} />
         )}
         {currentView === 'saved' && isComplianceWorkspace() && (
           <SavedTemplates workspaceId={id || ''} />
+        )}
+        {currentView === 'reports' && isComplianceWorkspace() && (
+          <Reports workspaceId={id || ''} />
         )}
       </div>
 

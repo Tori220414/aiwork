@@ -24,7 +24,8 @@
       "Bash(node test-workspace-names.js)",
       "Bash(git reset:*)",
       "Bash(del Stocktake.tsx)",
-      "Bash(ren:*)"
+      "Bash(ren:*)",
+      "Bash(railway status:*)"
     ],
     "deny": [],
     "ask": []
