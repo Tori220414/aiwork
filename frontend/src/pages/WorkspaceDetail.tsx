@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Grid, List, Calendar, TrendingUp, Plus, FileText, Pencil, ShoppingCart, Package, Trash2, Users, DollarSign } from 'lucide-react';
+import { ArrowLeft, Grid, List, Calendar, TrendingUp, Plus, FileText, Pencil, ShoppingCart, Package, Trash2, Users, DollarSign, ClipboardCheck, BookOpen } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
 import CalendarView from '../components/CalendarView';
@@ -12,6 +12,8 @@ import Orders from '../components/hospitality/Orders';
 import Stocktake from '../components/hospitality/Stocktake';
 import Rosters from '../components/hospitality/Rosters';
 import DailyTakings from '../components/hospitality/DailyTakings';
+import Templates from '../components/compliance/Templates';
+import SavedTemplates from '../components/compliance/SavedTemplates';
 import type { EventFormData } from '../components/EventModal';
 
 interface Workspace {
@@ -91,7 +93,14 @@ const WorkspaceDetail: React.FC = () => {
       console.log('Workspace data:', response.data);
       console.log('Workspace name:', response.data.name);
       setWorkspace(response.data);
-      setCurrentView(response.data.default_view || 'kanban');
+
+      // Set default view based on workspace type
+      const workspaceName = response.data.name?.toLowerCase() || '';
+      if (workspaceName.includes('compliance') || workspaceName.includes('checklist')) {
+        setCurrentView('templates');
+      } else {
+        setCurrentView(response.data.default_view || 'kanban');
+      }
     } catch (error) {
       console.error('Error fetching workspace:', error);
     } finally {
@@ -197,6 +206,8 @@ const WorkspaceDetail: React.FC = () => {
       case 'stocktake': return <Package className="w-4 h-4" />;
       case 'rosters': return <Users className="w-4 h-4" />;
       case 'takings': return <DollarSign className="w-4 h-4" />;
+      case 'templates': return <ClipboardCheck className="w-4 h-4" />;
+      case 'saved': return <BookOpen className="w-4 h-4" />;
       default: return <Grid className="w-4 h-4" />;
     }
   };
@@ -222,6 +233,16 @@ const WorkspaceDetail: React.FC = () => {
       isHospitality
     });
     return isHospitality;
+  };
+
+  const isComplianceWorkspace = () => {
+    const isCompliance = workspace?.name?.toLowerCase().includes('compliance') ||
+                        workspace?.name?.toLowerCase().includes('checklist');
+    console.log('isComplianceWorkspace check:', {
+      workspaceName: workspace?.name,
+      isCompliance
+    });
+    return isCompliance;
   };
 
   const renderKanbanView = () => {
@@ -380,7 +401,8 @@ const WorkspaceDetail: React.FC = () => {
             <p className="text-xs text-white/70 mt-1">
               {isBuilderWorkspace() && '✓ Builder workspace features enabled'}
               {isHospitalityWorkspace() && '✓ Hospitality workspace features enabled'}
-              {!isBuilderWorkspace() && !isHospitalityWorkspace() && 'Standard workspace'}
+              {isComplianceWorkspace() && '✓ Compliance workspace features enabled'}
+              {!isBuilderWorkspace() && !isHospitalityWorkspace() && !isComplianceWorkspace() && 'Standard workspace'}
             </p>
           </div>
           <button
@@ -496,15 +518,43 @@ const WorkspaceDetail: React.FC = () => {
               </button>
             </>
           )}
+          {isComplianceWorkspace() && (
+            <>
+              <button
+                onClick={() => setCurrentView('templates')}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                  currentView === 'templates'
+                    ? 'bg-primary-50 text-primary-700'
+                    : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                {getViewIcon('templates')}
+                <span className="capitalize text-sm font-medium">Templates</span>
+              </button>
+              <button
+                onClick={() => setCurrentView('saved')}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                  currentView === 'saved'
+                    ? 'bg-primary-50 text-primary-700'
+                    : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                {getViewIcon('saved')}
+                <span className="capitalize text-sm font-medium">Saved</span>
+              </button>
+            </>
+          )}
         </div>
 
-        <button
-          onClick={() => navigate('/tasks')}
-          className="flex items-center space-x-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Add Task</span>
-        </button>
+        {!isComplianceWorkspace() && (
+          <button
+            onClick={() => navigate('/tasks')}
+            className="flex items-center space-x-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add Task</span>
+          </button>
+        )}
       </div>
 
       {/* View Content */}
@@ -548,6 +598,12 @@ const WorkspaceDetail: React.FC = () => {
         )}
         {currentView === 'takings' && isHospitalityWorkspace() && (
           <DailyTakings workspaceId={id || ''} />
+        )}
+        {currentView === 'templates' && isComplianceWorkspace() && (
+          <Templates workspaceId={id || ''} />
+        )}
+        {currentView === 'saved' && isComplianceWorkspace() && (
+          <SavedTemplates workspaceId={id || ''} />
         )}
       </div>
 

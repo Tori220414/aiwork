@@ -30,6 +30,7 @@ const dailyTakingsRoutes = require('./routes/daily-takings');
 const productRoutes = require('./routes/products');
 const staffRoutes = require('./routes/staff');
 const supplierRoutes = require('./routes/suppliers');
+const complianceRoutes = require('./routes/compliance');
 
 // Initialize Express app
 const app = express();
@@ -129,6 +130,7 @@ app.use('/api/workspaces', dailyTakingsRoutes);
 app.use('/api/workspaces', productRoutes);
 app.use('/api/workspaces', staffRoutes);
 app.use('/api/workspaces', supplierRoutes);
+app.use('/api/workspaces', complianceRoutes);
 
 // Root route
 app.get('/', (req, res) => {
