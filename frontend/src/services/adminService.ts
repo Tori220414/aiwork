@@ -1,4 +1,4 @@
-import axiosInstance from './axios';
+import api from './api';
 
 export interface AdminStats {
   totalUsers: number;
@@ -97,7 +97,7 @@ export const adminService = {
    * Get admin dashboard statistics
    */
   async getStats(): Promise<AdminStats> {
-    const response = await axiosInstance.get('/admin/stats');
+    const response = await api.get('/admin/stats');
     return response.data.data;
   },
 
@@ -105,7 +105,7 @@ export const adminService = {
    * Get paginated list of users with optional filters
    */
   async getUsers(page = 1, limit = 50, search = '', status = '') {
-    const response = await axiosInstance.get('/admin/users', {
+    const response = await api.get('/admin/users', {
       params: { page, limit, search, status }
     });
     return response.data.data;
@@ -115,7 +115,7 @@ export const adminService = {
    * Update user active status
    */
   async updateUserStatus(userId: string, isActive: boolean) {
-    const response = await axiosInstance.put(`/admin/users/${userId}/status`, {
+    const response = await api.put(`/admin/users/${userId}/status`, {
       is_active: isActive
     });
     return response.data;
@@ -125,7 +125,7 @@ export const adminService = {
    * Grant or revoke admin privileges
    */
   async updateUserAdmin(userId: string, isAdmin: boolean, permissions: string[] = []) {
-    const response = await axiosInstance.put(`/admin/users/${userId}/admin`, {
+    const response = await api.put(`/admin/users/${userId}/admin`, {
       is_admin: isAdmin,
       admin_permissions: permissions
     });
@@ -136,7 +136,7 @@ export const adminService = {
    * Get paginated list of subscriptions
    */
   async getSubscriptions(page = 1, limit = 50, status = '') {
-    const response = await axiosInstance.get('/admin/subscriptions', {
+    const response = await api.get('/admin/subscriptions', {
       params: { page, limit, status }
     });
     return response.data.data;
@@ -146,7 +146,7 @@ export const adminService = {
    * Cancel a subscription
    */
   async cancelSubscription(subscriptionId: string) {
-    const response = await axiosInstance.put(`/admin/subscriptions/${subscriptionId}/cancel`);
+    const response = await api.put(`/admin/subscriptions/${subscriptionId}/cancel`);
     return response.data;
   },
 
@@ -154,7 +154,7 @@ export const adminService = {
    * Get paginated list of support tickets
    */
   async getSupportTickets(page = 1, limit = 50, status = '', priority = '') {
-    const response = await axiosInstance.get('/admin/support-tickets', {
+    const response = await api.get('/admin/support-tickets', {
       params: { page, limit, status, priority }
     });
     return response.data.data;
@@ -170,7 +170,7 @@ export const adminService = {
     admin_notes?: string;
     response?: string;
   }) {
-    const response = await axiosInstance.put(`/admin/support-tickets/${ticketId}`, updates);
+    const response = await api.put(`/admin/support-tickets/${ticketId}`, updates);
     return response.data;
   },
 
@@ -178,7 +178,7 @@ export const adminService = {
    * Get admin activity log
    */
   async getActivityLog(page = 1, limit = 100, adminId = '') {
-    const response = await axiosInstance.get('/admin/activity-log', {
+    const response = await api.get('/admin/activity-log', {
       params: { page, limit, adminId }
     });
     return response.data.data;
@@ -188,7 +188,7 @@ export const adminService = {
    * Get all system settings
    */
   async getSettings() {
-    const response = await axiosInstance.get('/admin/settings');
+    const response = await api.get('/admin/settings');
     return response.data.data;
   },
 
@@ -196,7 +196,7 @@ export const adminService = {
    * Update a system setting
    */
   async updateSetting(settingId: string, value: any) {
-    const response = await axiosInstance.put(`/admin/settings/${settingId}`, { value });
+    const response = await api.put(`/admin/settings/${settingId}`, { value });
     return response.data;
   }
 };
