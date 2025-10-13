@@ -20,6 +20,7 @@ const subscriptionRoutes = require('./routes/subscription');
 const userRoutes = require('./routes/users');
 const calendarRoutes = require('./routes/calendar');
 const plannerRoutes = require('./routes/planner');
+const adminRoutes = require('./routes/admin');
 
 // Initialize Express app
 const app = express();
@@ -108,6 +109,7 @@ app.use('/api/subscription', subscriptionRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/calendar', calendarRoutes);
 app.use('/api/planner', plannerRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Root route
 app.get('/', (req, res) => {
