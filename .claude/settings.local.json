@@ -20,7 +20,9 @@
       "Bash(railway variables:*)",
       "Bash(git log:*)",
       "Bash(taskkill:*)",
-      "Bash(git restore:*)"
+      "Bash(git restore:*)",
+      "Bash(node test-workspace-names.js)",
+      "Bash(git reset:*)"
     ],
     "deny": [],
     "ask": []

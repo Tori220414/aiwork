@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Grid, List, Calendar, TrendingUp, Plus, FileText, Pencil, ShoppingCart, Package, Trash2 } from 'lucide-react';
+import { ArrowLeft, Grid, List, Calendar, TrendingUp, Plus, FileText, Pencil, ShoppingCart, Package, Trash2, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
 import CalendarView from '../components/CalendarView';
@@ -10,6 +10,7 @@ import InvoiceManager from '../components/InvoiceManager';
 import Whiteboard from '../components/Whiteboard';
 import Orders from '../components/hospitality/Orders';
 import Stocktake from '../components/hospitality/Stocktake';
+import Rosters from '../components/hospitality/Rosters';
 import type { EventFormData } from '../components/EventModal';
 
 interface Workspace {
@@ -193,6 +194,7 @@ const WorkspaceDetail: React.FC = () => {
       case 'whiteboard': return <Pencil className="w-4 h-4" />;
       case 'orders': return <ShoppingCart className="w-4 h-4" />;
       case 'stocktake': return <Package className="w-4 h-4" />;
+      case 'rosters': return <Users className="w-4 h-4" />;
       default: return <Grid className="w-4 h-4" />;
     }
   };
@@ -458,6 +460,17 @@ const WorkspaceDetail: React.FC = () => {
                 <span className="capitalize text-sm font-medium">Stocktake</span>
               </button>
               <button
+                onClick={() => setCurrentView('rosters')}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                  currentView === 'rosters'
+                    ? 'bg-primary-50 text-primary-700'
+                    : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                {getViewIcon('rosters')}
+                <span className="capitalize text-sm font-medium">Rosters</span>
+              </button>
+              <button
                 onClick={() => setCurrentView('invoices')}
                 className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
                   currentView === 'invoices'
@@ -516,6 +529,9 @@ const WorkspaceDetail: React.FC = () => {
         )}
         {currentView === 'stocktake' && isHospitalityWorkspace() && (
           <Stocktake workspaceId={id || ''} />
+        )}
+        {currentView === 'rosters' && isHospitalityWorkspace() && (
+          <Rosters workspaceId={id || ''} />
         )}
       </div>
 

@@ -25,6 +25,7 @@ const supportRoutes = require('./routes/support');
 const invoiceRoutes = require('./routes/invoices');
 const orderRoutes = require('./routes/orders');
 const stocktakeRoutes = require('./routes/stocktakes');
+const rosterRoutes = require('./routes/rosters');
 
 // Initialize Express app
 const app = express();
@@ -119,6 +120,7 @@ app.use('/api/support', supportRoutes);
 app.use('/api/workspaces', invoiceRoutes);
 app.use('/api/workspaces', orderRoutes);
 app.use('/api/workspaces', stocktakeRoutes);
+app.use('/api/workspaces', rosterRoutes);
 
 // Root route
 app.get('/', (req, res) => {
