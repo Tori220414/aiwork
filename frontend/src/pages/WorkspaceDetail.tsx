@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Grid, List, Calendar, TrendingUp, Plus, FileText, Pencil } from 'lucide-react';
+import { ArrowLeft, Grid, List, Calendar, TrendingUp, Plus, FileText, Pencil, ShoppingCart, Package } from 'lucide-react';
 import api from '../services/api';
 import CalendarView from '../components/CalendarView';
 import EventModal from '../components/EventModal';
 import EventDetailModal from '../components/EventDetailModal';
 import InvoiceManager from '../components/InvoiceManager';
 import Whiteboard from '../components/Whiteboard';
+import Orders from '../components/hospitality/Orders';
+import Stocktake from '../components/hospitality/Stocktake';
 import type { EventFormData } from '../components/EventModal';
 
 interface Workspace {
@@ -173,6 +175,8 @@ const WorkspaceDetail: React.FC = () => {
       case 'timeline': return <TrendingUp className="w-4 h-4" />;
       case 'invoices': return <FileText className="w-4 h-4" />;
       case 'whiteboard': return <Pencil className="w-4 h-4" />;
+      case 'orders': return <ShoppingCart className="w-4 h-4" />;
+      case 'stocktake': return <Package className="w-4 h-4" />;
       default: return <Grid className="w-4 h-4" />;
     }
   };
@@ -185,6 +189,19 @@ const WorkspaceDetail: React.FC = () => {
       isBuilder
     });
     return isBuilder;
+  };
+
+  const isHospitalityWorkspace = () => {
+    const isHospitality = workspace?.name?.toLowerCase().includes('hospitality') ||
+                          workspace?.name?.toLowerCase().includes('pub') ||
+                          workspace?.name?.toLowerCase().includes('hotel') ||
+                          workspace?.name?.toLowerCase().includes('club') ||
+                          workspace?.name?.toLowerCase().includes('licensee');
+    console.log('isHospitalityWorkspace check:', {
+      workspaceName: workspace?.name,
+      isHospitality
+    });
+    return isHospitality;
   };
 
   const renderKanbanView = () => {
@@ -341,7 +358,9 @@ const WorkspaceDetail: React.FC = () => {
               <p className="text-white/90">{workspace.description}</p>
             )}
             <p className="text-xs text-white/70 mt-1">
-              {isBuilderWorkspace() ? '✓ Builder workspace features enabled' : 'Standard workspace'}
+              {isBuilderWorkspace() && '✓ Builder workspace features enabled'}
+              {isHospitalityWorkspace() && '✓ Hospitality workspace features enabled'}
+              {!isBuilderWorkspace() && !isHospitalityWorkspace() && 'Standard workspace'}
             </p>
           </div>
         </div>
@@ -390,6 +409,32 @@ const WorkspaceDetail: React.FC = () => {
               </button>
             </>
           )}
+          {isHospitalityWorkspace() && (
+            <>
+              <button
+                onClick={() => setCurrentView('orders')}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                  currentView === 'orders'
+                    ? 'bg-primary-50 text-primary-700'
+                    : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                {getViewIcon('orders')}
+                <span className="capitalize text-sm font-medium">Orders</span>
+              </button>
+              <button
+                onClick={() => setCurrentView('stocktake')}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                  currentView === 'stocktake'
+                    ? 'bg-primary-50 text-primary-700'
+                    : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                {getViewIcon('stocktake')}
+                <span className="capitalize text-sm font-medium">Stocktake</span>
+              </button>
+            </>
+          )}
         </div>
 
         <button
@@ -430,6 +475,12 @@ const WorkspaceDetail: React.FC = () => {
         )}
         {currentView === 'whiteboard' && isBuilderWorkspace() && (
           <Whiteboard workspaceId={id || ''} />
+        )}
+        {currentView === 'orders' && isHospitalityWorkspace() && (
+          <Orders workspaceId={id || ''} />
+        )}
+        {currentView === 'stocktake' && isHospitalityWorkspace() && (
+          <Stocktake workspaceId={id || ''} />
         )}
       </div>
 
