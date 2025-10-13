@@ -157,27 +157,66 @@ Make sure items are relevant to the industry and cover all critical compliance a
 
     try {
       const gemini = getGemini();
+
+      if (!gemini) {
+        return res.status(500).json({
+          success: false,
+          message: 'AI service not configured. Please check GEMINI_API_KEY environment variable.'
+        });
+      }
+
       const model = gemini.getGenerativeModel({ model: 'gemini-pro' });
       const result = await model.generateContent(aiPrompt);
       const response = await result.response;
       let aiText = response.text();
 
+      console.log('Raw AI response:', aiText);
+
       // Clean up response - remove markdown code blocks if present
       aiText = aiText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
 
+      // Try to find JSON array in the response
+      const jsonMatch = aiText.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        aiText = jsonMatch[0];
+      }
+
+      console.log('Cleaned AI response:', aiText);
+
       // Parse the JSON response
-      const checklistItems = JSON.parse(aiText);
+      let checklistItems;
+      try {
+        checklistItems = JSON.parse(aiText);
+      } catch (parseError) {
+        console.error('JSON parse error:', parseError);
+        console.error('Text that failed to parse:', aiText);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to parse AI response. Please try again.',
+          error: 'Invalid JSON format from AI'
+        });
+      }
+
+      if (!Array.isArray(checklistItems)) {
+        return res.status(500).json({
+          success: false,
+          message: 'AI returned invalid format. Expected an array.',
+          error: 'Not an array'
+        });
+      }
 
       // Add IDs to each item
       const itemsWithIds = checklistItems.map((item, index) => ({
         id: `item-${Date.now()}-${index}`,
-        text: item.text,
+        text: item.text || 'Untitled item',
         required: item.required !== false, // default to true
         notes: item.notes || '',
         completed: false,
         completedAt: null,
         completedBy: null
       }));
+
+      console.log('Generated items:', itemsWithIds.length);
 
       res.json({
         success: true,
@@ -186,9 +225,10 @@ Make sure items are relevant to the industry and cover all critical compliance a
       });
     } catch (aiError) {
       console.error('Error with AI generation:', aiError);
+      console.error('Error stack:', aiError.stack);
       return res.status(500).json({
         success: false,
-        message: 'Failed to generate checklist with AI',
+        message: 'Failed to generate checklist with AI: ' + aiError.message,
         error: aiError.message
       });
     }
