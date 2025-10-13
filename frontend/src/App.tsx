@@ -16,6 +16,7 @@ import Billing from './pages/Billing';
 import BrainDump from './pages/BrainDump';
 import Profile from './pages/Profile';
 import Admin from './pages/Admin';
+import Support from './pages/Support';
 import WeeklyPlanner from './pages/WeeklyPlanner';
 import DailyPlanner from './pages/DailyPlanner';
 import CalendarSettings from './pages/CalendarSettings';
@@ -83,6 +84,7 @@ function App() {
           <Route path="/profile" element={<Profile />} />
           <Route path="/calendar" element={<CalendarSettings />} />
           <Route path="/billing" element={<Billing />} />
+          <Route path="/support" element={<Support />} />
           <Route path="/admin" element={<Admin />} />
         </Route>
 

@@ -21,6 +21,7 @@ const userRoutes = require('./routes/users');
 const calendarRoutes = require('./routes/calendar');
 const plannerRoutes = require('./routes/planner');
 const adminRoutes = require('./routes/admin');
+const supportRoutes = require('./routes/support');
 
 // Initialize Express app
 const app = express();
@@ -111,6 +112,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/calendar', calendarRoutes);
 app.use('/api/planner', plannerRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/support', supportRoutes);
 
 // Root route
 app.get('/', (req, res) => {

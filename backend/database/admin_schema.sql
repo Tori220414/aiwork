@@ -173,7 +173,7 @@ VALUES
   ('maintenance_mode', 'false', 'system', 'Enable/disable maintenance mode'),
   ('allow_registrations', 'true', 'system', 'Allow new user registrations'),
   ('max_free_trial_days', '30', 'billing', 'Number of days for free trial'),
-  ('support_email', '"support@auroratasks.com"', 'contact', 'Support email address'),
+  ('support_email', '"tori.willoughby@hotelbargo.com.au"', 'contact', 'Support email address'),
   ('max_tasks_per_user', '1000', 'limits', 'Maximum tasks per user'),
   ('max_workspaces_per_user', '50', 'limits', 'Maximum workspaces per user')
 ON CONFLICT (key) DO NOTHING;
