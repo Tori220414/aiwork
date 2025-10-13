@@ -1,7 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Calendar, Clock, Users, Download } from 'lucide-react';
+import { Plus, Edit2, Trash2, Calendar, Clock, Users, Download, Book, Search, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
+
+interface StaffMember {
+  _id?: string;
+  id?: string;
+  name: string;
+  position: string;
+  phone?: string;
+  email?: string;
+}
 
 interface Shift {
   staff_name: string;
@@ -31,9 +40,12 @@ interface RostersProps {
 
 const Rosters: React.FC<RostersProps> = ({ workspaceId }) => {
   const [rosters, setRosters] = useState<Roster[]>([]);
+  const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [showLibrary, setShowLibrary] = useState(false);
   const [editingRoster, setEditingRoster] = useState<Roster | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Form state
   const [weekStarting, setWeekStarting] = useState('');
@@ -53,6 +65,7 @@ const Rosters: React.FC<RostersProps> = ({ workspaceId }) => {
 
   useEffect(() => {
     fetchRosters();
+    fetchStaff();
   }, [workspaceId]);
 
   const fetchRosters = async () => {
@@ -66,6 +79,47 @@ const Rosters: React.FC<RostersProps> = ({ workspaceId }) => {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchStaff = async () => {
+    try {
+      const response = await api.get(`/workspaces/${workspaceId}/staff`);
+      setStaffMembers(response.data.staff || []);
+    } catch (error: any) {
+      console.error('Error fetching staff:', error);
+    }
+  };
+
+  const saveStaffToLibrary = async (staff: Omit<StaffMember, '_id' | 'id'>) => {
+    try {
+      await api.post(`/workspaces/${workspaceId}/staff`, staff);
+      await fetchStaff();
+    } catch (error: any) {
+      console.error('Error saving staff:', error);
+    }
+  };
+
+  const deleteStaff = async (staffId: string) => {
+    if (!window.confirm('Delete this staff member from library?')) return;
+
+    try {
+      await api.delete(`/workspaces/${workspaceId}/staff/${staffId}`);
+      toast.success('Staff member deleted');
+      fetchStaff();
+    } catch (error: any) {
+      toast.error('Failed to delete staff member');
+    }
+  };
+
+  const addStaffFromLibrary = (staff: StaffMember, shiftIndex?: number) => {
+    if (shiftIndex !== undefined) {
+      // Update specific shift
+      const newShifts = [...shifts];
+      newShifts[shiftIndex].staff_name = staff.name;
+      newShifts[shiftIndex].position = staff.position;
+      setShifts(newShifts);
+      toast.success(`Added ${staff.name}`);
     }
   };
 
@@ -166,6 +220,21 @@ const Rosters: React.FC<RostersProps> = ({ workspaceId }) => {
         await api.post(`/workspaces/${workspaceId}/rosters`, rosterData);
         toast.success('Roster created successfully');
       }
+
+      // Auto-save new staff to library
+      for (const shift of shifts) {
+        const existingStaff = staffMembers.find(s =>
+          s.name.toLowerCase() === shift.staff_name.toLowerCase()
+        );
+
+        if (!existingStaff && shift.staff_name) {
+          await saveStaffToLibrary({
+            name: shift.staff_name,
+            position: shift.position
+          });
+        }
+      }
+
       fetchRosters();
       resetForm();
     } catch (error: any) {
@@ -241,6 +310,11 @@ const Rosters: React.FC<RostersProps> = ({ workspaceId }) => {
     }
   };
 
+  const filteredStaff = staffMembers.filter(s =>
+    s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    s.position.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   if (loading) {
     return <div className="flex justify-center py-12">
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
@@ -251,16 +325,94 @@ const Rosters: React.FC<RostersProps> = ({ workspaceId }) => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-900">Staff Rosters</h2>
-        {!showForm && (
-          <button
-            onClick={() => setShowForm(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
-          >
-            <Plus className="w-4 h-4" />
-            New Roster
-          </button>
-        )}
+        <div className="flex gap-2">
+          {!showForm && (
+            <>
+              <button
+                onClick={() => setShowLibrary(!showLibrary)}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+              >
+                <Book className="w-4 h-4" />
+                Staff Library ({staffMembers.length})
+              </button>
+              <button
+                onClick={() => setShowForm(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+              >
+                <Plus className="w-4 h-4" />
+                New Roster
+              </button>
+            </>
+          )}
+        </div>
       </div>
+
+      {/* Staff Library Modal */}
+      {showLibrary && (
+        <div className="bg-white rounded-xl shadow-md p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Staff Library</h3>
+            <button
+              onClick={() => setShowLibrary(false)}
+              className="p-2 hover:bg-gray-100 rounded-lg"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="mb-4">
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search staff..."
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg"
+              />
+            </div>
+          </div>
+
+          <div className="overflow-x-auto max-h-96">
+            <table className="w-full">
+              <thead className="bg-gray-50 sticky top-0">
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Name</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Position</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Phone</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Email</th>
+                  <th className="px-4 py-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredStaff.map((staff) => (
+                  <tr key={staff._id || staff.id} className="border-b hover:bg-gray-50">
+                    <td className="px-4 py-2 text-sm">{staff.name}</td>
+                    <td className="px-4 py-2 text-sm">{staff.position}</td>
+                    <td className="px-4 py-2 text-sm text-gray-500">{staff.phone || '-'}</td>
+                    <td className="px-4 py-2 text-sm text-gray-500">{staff.email || '-'}</td>
+                    <td className="px-4 py-2">
+                      <button
+                        onClick={() => deleteStaff(staff._id || staff.id || '')}
+                        className="p-1 text-red-600 hover:bg-red-50 rounded"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {filteredStaff.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                <p>No staff in library yet</p>
+                <p className="text-sm">Staff will be automatically saved when you create rosters</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {showForm ? (
         <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-md p-6 space-y-6">
@@ -292,9 +444,20 @@ const Rosters: React.FC<RostersProps> = ({ workspaceId }) => {
             </div>
           </div>
 
+          <div className="flex justify-between items-center">
+            <label className="text-sm font-medium text-gray-700">Shifts</label>
+            <button
+              type="button"
+              onClick={() => setShowLibrary(!showLibrary)}
+              className="text-sm text-primary-600 hover:text-primary-700 flex items-center gap-1"
+            >
+              <Book className="w-4 h-4" />
+              {showLibrary ? 'Hide' : 'Show'} Staff Library
+            </button>
+          </div>
+
           {/* Shifts */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Shifts</label>
             <div className="space-y-2">
               {shifts.map((shift, index) => (
                 <div key={index} className="grid grid-cols-12 gap-2 p-3 bg-gray-50 rounded-lg">
@@ -304,7 +467,13 @@ const Rosters: React.FC<RostersProps> = ({ workspaceId }) => {
                     onChange={(e) => handleShiftChange(index, 'staff_name', e.target.value)}
                     className="col-span-2 px-3 py-2 border border-gray-300 rounded-lg"
                     placeholder="Staff name"
+                    list={`staff-${index}`}
                   />
+                  <datalist id={`staff-${index}`}>
+                    {staffMembers.map(s => (
+                      <option key={s._id || s.id} value={s.name} />
+                    ))}
+                  </datalist>
                   <select
                     value={shift.position}
                     onChange={(e) => handleShiftChange(index, 'position', e.target.value)}

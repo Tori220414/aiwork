@@ -22,7 +22,9 @@
       "Bash(taskkill:*)",
       "Bash(git restore:*)",
       "Bash(node test-workspace-names.js)",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(del Stocktake.tsx)",
+      "Bash(ren:*)"
     ],
     "deny": [],
     "ask": []

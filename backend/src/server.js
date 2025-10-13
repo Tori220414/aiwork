@@ -28,6 +28,8 @@ const stocktakeRoutes = require('./routes/stocktakes');
 const rosterRoutes = require('./routes/rosters');
 const dailyTakingsRoutes = require('./routes/daily-takings');
 const productRoutes = require('./routes/products');
+const staffRoutes = require('./routes/staff');
+const supplierRoutes = require('./routes/suppliers');
 
 // Initialize Express app
 const app = express();
@@ -125,6 +127,8 @@ app.use('/api/workspaces', stocktakeRoutes);
 app.use('/api/workspaces', rosterRoutes);
 app.use('/api/workspaces', dailyTakingsRoutes);
 app.use('/api/workspaces', productRoutes);
+app.use('/api/workspaces', staffRoutes);
+app.use('/api/workspaces', supplierRoutes);
 
 // Root route
 app.get('/', (req, res) => {
