@@ -115,7 +115,7 @@ const BrainDump: React.FC = () => {
 
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
-    recognition.interimResults = true;
+    recognition.interimResults = false; // Disable interim results to prevent duplication on mobile
     recognition.lang = 'en-US';
 
     recognition.onstart = () => {
@@ -125,16 +125,12 @@ const BrainDump: React.FC = () => {
     };
 
     recognition.onresult = (event: any) => {
-      // On mobile, we only want to process the very last result if it's final
-      // This prevents accumulation of interim results
-      const lastResultIndex = event.results.length - 1;
-      const lastResult = event.results[lastResultIndex];
-
-      // Only process if this is a final result and we haven't processed it yet
-      if (lastResult.isFinal && lastResultIndex >= lastProcessedIndexRef.current) {
-        const transcript = lastResult[0].transcript;
+      // With interimResults = false, we only get final results
+      // Process only new results we haven't seen yet
+      for (let i = lastProcessedIndexRef.current; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
         setDumpText(prev => prev + transcript + ' ');
-        lastProcessedIndexRef.current = lastResultIndex + 1;
+        lastProcessedIndexRef.current = i + 1;
       }
     };
 
