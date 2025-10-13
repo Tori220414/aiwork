@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Users, CreditCard, Ticket, Activity, Settings, TrendingUp, CheckCircle, AlertCircle, Search, Shield, ShieldOff, UserCheck, UserX } from 'lucide-react';
-import { adminService, AdminStats, User } from '../services/adminService';
+import { Users, CreditCard, Ticket, Activity, Settings, TrendingUp, CheckCircle, AlertCircle, Search, Shield, ShieldOff, UserCheck, UserX, XCircle, DollarSign, Calendar } from 'lucide-react';
+import { adminService, AdminStats, User, Subscription } from '../services/adminService';
 import toast from 'react-hot-toast';
 
 const Admin: React.FC = () => {
@@ -16,6 +16,13 @@ const Admin: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
+  // Subscription Management State
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [subscriptionsLoading, setSubscriptionsLoading] = useState(false);
+  const [subStatusFilter, setSubStatusFilter] = useState('');
+  const [subCurrentPage, setSubCurrentPage] = useState(1);
+  const [subTotalPages, setSubTotalPages] = useState(1);
+
   useEffect(() => {
     fetchStats();
   }, []);
@@ -23,8 +30,10 @@ const Admin: React.FC = () => {
   useEffect(() => {
     if (activeTab === 'users') {
       fetchUsers();
+    } else if (activeTab === 'subscriptions') {
+      fetchSubscriptions();
     }
-  }, [activeTab, currentPage, userSearch, userStatusFilter]);
+  }, [activeTab, currentPage, userSearch, userStatusFilter, subCurrentPage, subStatusFilter]);
 
   const fetchStats = async () => {
     try {
@@ -72,6 +81,54 @@ const Admin: React.FC = () => {
     } catch (error: any) {
       toast.error('Failed to update admin status');
       console.error('Error updating admin status:', error);
+    }
+  };
+
+  const fetchSubscriptions = async () => {
+    setSubscriptionsLoading(true);
+    try {
+      const response = await adminService.getSubscriptions(subCurrentPage, 50, subStatusFilter);
+      setSubscriptions(response.subscriptions);
+      setSubTotalPages(response.pagination.totalPages);
+    } catch (error: any) {
+      toast.error('Failed to load subscriptions');
+      console.error('Error fetching subscriptions:', error);
+    } finally {
+      setSubscriptionsLoading(false);
+    }
+  };
+
+  const handleCancelSubscription = async (subscriptionId: string) => {
+    if (!window.confirm('Are you sure you want to cancel this subscription? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      await adminService.cancelSubscription(subscriptionId);
+      toast.success('Subscription canceled successfully');
+      fetchSubscriptions();
+      fetchStats(); // Refresh stats
+    } catch (error: any) {
+      toast.error('Failed to cancel subscription');
+      console.error('Error canceling subscription:', error);
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'active':
+        return 'bg-green-100 text-green-800';
+      case 'trialing':
+        return 'bg-blue-100 text-blue-800';
+      case 'past_due':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'canceled':
+      case 'cancelled':
+        return 'bg-red-100 text-red-800';
+      case 'incomplete':
+        return 'bg-gray-100 text-gray-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
     }
   };
 
@@ -486,14 +543,168 @@ const Admin: React.FC = () => {
 
             {activeTab === 'subscriptions' && (
               <div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-4">Subscription Management</h2>
-                <div className="bg-gray-50 rounded-lg p-8 text-center">
-                  <CreditCard className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-600 mb-2">Subscription management interface coming soon</p>
-                  <p className="text-sm text-gray-500">
-                    View subscription details and manage billing
-                  </p>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-bold text-gray-900">Subscription Management</h2>
                 </div>
+
+                {/* Filters */}
+                <div className="flex flex-col sm:flex-row gap-4 mb-6">
+                  <select
+                    value={subStatusFilter}
+                    onChange={(e) => {
+                      setSubStatusFilter(e.target.value);
+                      setSubCurrentPage(1);
+                    }}
+                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  >
+                    <option value="">All Subscriptions</option>
+                    <option value="active">Active</option>
+                    <option value="trialing">Trialing</option>
+                    <option value="past_due">Past Due</option>
+                    <option value="canceled">Canceled</option>
+                    <option value="incomplete">Incomplete</option>
+                  </select>
+                </div>
+
+                {/* Subscriptions Table */}
+                {subscriptionsLoading ? (
+                  <div className="flex justify-center py-12">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600" />
+                  </div>
+                ) : subscriptions.length === 0 ? (
+                  <div className="bg-gray-50 rounded-lg p-8 text-center">
+                    <CreditCard className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600">No subscriptions found</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              User
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Status
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Amount
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Period
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Trial Ends
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Created
+                            </th>
+                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Actions
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {subscriptions.map((sub) => (
+                            <tr key={sub.id} className="hover:bg-gray-50">
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="flex items-center">
+                                  <div className="h-10 w-10 flex-shrink-0">
+                                    <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center">
+                                      <span className="text-primary-700 font-medium text-sm">
+                                        {sub.users.name.charAt(0).toUpperCase()}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="ml-4">
+                                    <div className="text-sm font-medium text-gray-900">{sub.users.name}</div>
+                                    <div className="text-sm text-gray-500">{sub.users.email}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(sub.status)}`}>
+                                  {sub.status.charAt(0).toUpperCase() + sub.status.slice(1)}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="flex items-center text-sm text-gray-900">
+                                  <DollarSign className="w-4 h-4 mr-1" />
+                                  {(sub.amount / 100).toFixed(2)}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="text-sm text-gray-900">
+                                  {new Date(sub.current_period_start).toLocaleDateString()} -
+                                </div>
+                                <div className="text-sm text-gray-500">
+                                  {new Date(sub.current_period_end).toLocaleDateString()}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                {sub.trial_end ? (
+                                  <div className="flex items-center text-sm text-blue-600">
+                                    <Calendar className="w-4 h-4 mr-1" />
+                                    {new Date(sub.trial_end).toLocaleDateString()}
+                                  </div>
+                                ) : (
+                                  <span className="text-sm text-gray-400">N/A</span>
+                                )}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="text-sm text-gray-500">
+                                  {new Date(sub.created_at).toLocaleDateString()}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                {sub.status !== 'canceled' && sub.status !== 'cancelled' && (
+                                  <button
+                                    onClick={() => handleCancelSubscription(sub.id)}
+                                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                    title="Cancel subscription"
+                                  >
+                                    <XCircle className="w-5 h-5" />
+                                  </button>
+                                )}
+                                {(sub.status === 'canceled' || sub.status === 'cancelled') && sub.canceled_at && (
+                                  <div className="text-xs text-gray-500">
+                                    Canceled {new Date(sub.canceled_at).toLocaleDateString()}
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Pagination */}
+                    {subTotalPages > 1 && (
+                      <div className="flex items-center justify-between mt-6 px-4">
+                        <div className="text-sm text-gray-700">
+                          Page {subCurrentPage} of {subTotalPages}
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setSubCurrentPage(p => Math.max(1, p - 1))}
+                            disabled={subCurrentPage === 1}
+                            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Previous
+                          </button>
+                          <button
+                            onClick={() => setSubCurrentPage(p => Math.min(subTotalPages, p + 1))}
+                            disabled={subCurrentPage === subTotalPages}
+                            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Next
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             )}
 
