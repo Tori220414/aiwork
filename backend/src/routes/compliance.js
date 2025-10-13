@@ -165,7 +165,7 @@ Make sure items are relevant to the industry and cover all critical compliance a
         });
       }
 
-      const model = gemini.getGenerativeModel({ model: 'gemini-pro' });
+      const model = gemini.getGenerativeModel({ model: 'gemini-1.5-flash' });
       const result = await model.generateContent(aiPrompt);
       const response = await result.response;
       let aiText = response.text();
