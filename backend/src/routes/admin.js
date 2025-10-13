@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const { getSupabase } = require('../config/supabase');
-const { authenticateToken } = require('../middleware/auth');
+const { protect } = require('../middleware/auth');
 const { requireAdmin, requireSuperAdmin, logAdminActivity } = require('../middleware/adminAuth');
 const stripe = require('../config/stripe');
 
 // Apply authentication to all admin routes
-router.use(authenticateToken);
+router.use(protect);
 
 /**
  * GET /api/admin/stats
