@@ -19,8 +19,7 @@ const BrainDump: React.FC = () => {
   const [isListening, setIsListening] = useState(false);
   const [isSupported, setIsSupported] = useState(true);
   const recognitionRef = useRef<any>(null);
-  const pendingTranscriptRef = useRef<string>('');
-  const debounceTimerRef = useRef<any>(null);
+  const pendingTranscriptRef = useRef<string>(''); // Used to track listening state
 
   const handleExtractTasks = async () => {
     if (!dumpText.trim()) {
@@ -115,43 +114,31 @@ const BrainDump: React.FC = () => {
     }
 
     const recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = false; // Disable interim results to prevent duplication on mobile
+    recognition.continuous = false; // Disable continuous to get one clean result per session
+    recognition.interimResults = false; // No interim results
     recognition.lang = 'en-US';
 
     recognition.onstart = () => {
       setIsListening(true);
-      pendingTranscriptRef.current = '';
-      toast.success('Voice recording started. Speak now!', { icon: '🎤' });
+      if (!pendingTranscriptRef.current) {
+        toast.success('Voice recording started. Speak now!', { icon: '🎤' });
+      }
     };
 
     recognition.onresult = (event: any) => {
-      // Clear any pending debounce timer
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-
-      // Get only the latest final result
-      let latestFinalTranscript = '';
-      for (let i = event.results.length - 1; i >= 0; i--) {
-        if (event.results[i].isFinal) {
-          latestFinalTranscript = event.results[i][0].transcript.trim();
-          break;
+      // With continuous=false, we only get one result per start/stop cycle
+      const result = event.results[0];
+      if (result.isFinal) {
+        const transcript = result[0].transcript.trim();
+        if (transcript) {
+          setDumpText(prev => prev + transcript + ' ');
         }
       }
+    };
 
-      if (latestFinalTranscript) {
-        // Store it temporarily and wait for events to settle
-        pendingTranscriptRef.current = latestFinalTranscript;
-
-        // Only add after 300ms of no new events (debounce)
-        debounceTimerRef.current = setTimeout(() => {
-          if (pendingTranscriptRef.current) {
-            setDumpText(prev => prev + pendingTranscriptRef.current + ' ');
-            pendingTranscriptRef.current = '';
-          }
-        }, 300);
-      }
+    recognition.onspeechend = () => {
+      // When user stops speaking, automatically restart if still in listening mode
+      recognition.stop();
     };
 
     recognition.onerror = (event: any) => {
@@ -168,11 +155,16 @@ const BrainDump: React.FC = () => {
     };
 
     recognition.onend = () => {
-      setIsListening(false);
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
+      // Auto-restart recognition if user hasn't manually stopped
+      if (pendingTranscriptRef.current === 'listening') {
+        try {
+          setTimeout(() => recognition.start(), 100);
+        } catch (error) {
+          console.error('Error restarting recognition:', error);
+        }
+      } else {
+        setIsListening(false);
       }
-      pendingTranscriptRef.current = '';
     };
 
     recognitionRef.current = recognition;
@@ -191,16 +183,15 @@ const BrainDump: React.FC = () => {
     }
 
     if (isListening) {
+      // Signal to stop auto-restart
+      pendingTranscriptRef.current = '';
       recognitionRef.current?.stop();
       setIsListening(false);
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-      pendingTranscriptRef.current = '';
       toast.success('Voice recording stopped', { icon: '⏸️' });
     } else {
       try {
-        pendingTranscriptRef.current = '';
+        // Signal that we're in listening mode for auto-restart
+        pendingTranscriptRef.current = 'listening';
         recognitionRef.current?.start();
       } catch (error) {
         console.error('Error starting recognition:', error);
