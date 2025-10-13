@@ -1,7 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Package, Download, Save } from 'lucide-react';
+import { Plus, Edit2, Trash2, Package, Download, Save, Book, Search, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
+
+interface Product {
+  _id?: string;
+  id?: string;
+  product: string;
+  category: string;
+  unit: string;
+  value_per_unit: number;
+}
 
 interface StocktakeItem {
   product: string;
@@ -34,9 +43,12 @@ interface StocktakeProps {
 
 const Stocktake: React.FC<StocktakeProps> = ({ workspaceId }) => {
   const [stocktakes, setStocktakes] = useState<Stocktake[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [showLibrary, setShowLibrary] = useState(false);
   const [editingStocktake, setEditingStocktake] = useState<Stocktake | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Form state
   const [stocktakeNumber, setStocktakeNumber] = useState('');
@@ -49,6 +61,7 @@ const Stocktake: React.FC<StocktakeProps> = ({ workspaceId }) => {
 
   useEffect(() => {
     fetchStocktakes();
+    fetchProducts();
   }, [workspaceId]);
 
   const fetchStocktakes = async () => {
@@ -63,6 +76,51 @@ const Stocktake: React.FC<StocktakeProps> = ({ workspaceId }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchProducts = async () => {
+    try {
+      const response = await api.get(`/workspaces/${workspaceId}/products`);
+      setProducts(response.data.products || []);
+    } catch (error: any) {
+      console.error('Error fetching products:', error);
+    }
+  };
+
+  const saveProductToLibrary = async (product: Omit<Product, '_id' | 'id'>) => {
+    try {
+      await api.post(`/workspaces/${workspaceId}/products`, product);
+      await fetchProducts();
+    } catch (error: any) {
+      console.error('Error saving product:', error);
+    }
+  };
+
+  const deleteProduct = async (productId: string) => {
+    if (!window.confirm('Delete this product from library?')) return;
+
+    try {
+      await api.delete(`/workspaces/${workspaceId}/products/${productId}`);
+      toast.success('Product deleted');
+      fetchProducts();
+    } catch (error: any) {
+      toast.error('Failed to delete product');
+    }
+  };
+
+  const addProductFromLibrary = (product: Product) => {
+    const newItem: StocktakeItem = {
+      product: product.product,
+      category: product.category,
+      unit: product.unit,
+      expected_quantity: 0,
+      actual_quantity: 0,
+      variance: 0,
+      value_per_unit: product.value_per_unit,
+      variance_value: 0
+    };
+    setItems([...items, newItem]);
+    toast.success(`Added ${product.product}`);
   };
 
   const calculateVariance = (expected: number, actual: number, valuePerUnit: number) => {
@@ -151,6 +209,24 @@ const Stocktake: React.FC<StocktakeProps> = ({ workspaceId }) => {
         await api.post(`/workspaces/${workspaceId}/stocktakes`, stocktakeData);
         toast.success('Stocktake created successfully');
       }
+
+      // Auto-save new products to library
+      for (const item of items) {
+        const existingProduct = products.find(p =>
+          p.product.toLowerCase() === item.product.toLowerCase() &&
+          p.category === item.category
+        );
+
+        if (!existingProduct && item.product) {
+          await saveProductToLibrary({
+            product: item.product,
+            category: item.category,
+            unit: item.unit,
+            value_per_unit: item.value_per_unit
+          });
+        }
+      }
+
       fetchStocktakes();
       resetForm();
     } catch (error: any) {
@@ -219,6 +295,11 @@ const Stocktake: React.FC<StocktakeProps> = ({ workspaceId }) => {
     }
   };
 
+  const filteredProducts = products.filter(p =>
+    p.product.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    p.category.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   if (loading) {
     return <div className="flex justify-center py-12">
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
@@ -229,16 +310,105 @@ const Stocktake: React.FC<StocktakeProps> = ({ workspaceId }) => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-900">Stocktake</h2>
-        {!showForm && (
-          <button
-            onClick={() => setShowForm(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
-          >
-            <Plus className="w-4 h-4" />
-            New Stocktake
-          </button>
-        )}
+        <div className="flex gap-2">
+          {!showForm && (
+            <>
+              <button
+                onClick={() => setShowLibrary(!showLibrary)}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+              >
+                <Book className="w-4 h-4" />
+                Product Library ({products.length})
+              </button>
+              <button
+                onClick={() => setShowForm(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+              >
+                <Plus className="w-4 h-4" />
+                New Stocktake
+              </button>
+            </>
+          )}
+        </div>
       </div>
+
+      {/* Product Library Modal */}
+      {showLibrary && (
+        <div className="bg-white rounded-xl shadow-md p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Product Library</h3>
+            <button
+              onClick={() => setShowLibrary(false)}
+              className="p-2 hover:bg-gray-100 rounded-lg"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="mb-4">
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search products..."
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg"
+              />
+            </div>
+          </div>
+
+          <div className="overflow-x-auto max-h-96">
+            <table className="w-full">
+              <thead className="bg-gray-50 sticky top-0">
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Product</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Category</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Unit</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Value/Unit</th>
+                  <th className="px-4 py-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredProducts.map((product) => (
+                  <tr key={product._id || product.id} className="border-b hover:bg-gray-50">
+                    <td className="px-4 py-2 text-sm">{product.product}</td>
+                    <td className="px-4 py-2 text-sm">{product.category}</td>
+                    <td className="px-4 py-2 text-sm">{product.unit}</td>
+                    <td className="px-4 py-2 text-sm">${product.value_per_unit.toFixed(2)}</td>
+                    <td className="px-4 py-2">
+                      <div className="flex gap-2">
+                        {showForm && (
+                          <button
+                            onClick={() => addProductFromLibrary(product)}
+                            className="p-1 text-green-600 hover:bg-green-50 rounded"
+                            title="Add to stocktake"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => deleteProduct(product._id || product.id || '')}
+                          className="p-1 text-red-600 hover:bg-red-50 rounded"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {filteredProducts.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                <p>No products in library yet</p>
+                <p className="text-sm">Products will be automatically saved when you create stocktakes</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {showForm ? (
         <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-md p-6 space-y-6">
@@ -284,9 +454,20 @@ const Stocktake: React.FC<StocktakeProps> = ({ workspaceId }) => {
             </div>
           </div>
 
+          <div className="flex justify-between items-center">
+            <label className="text-sm font-medium text-gray-700">Items</label>
+            <button
+              type="button"
+              onClick={() => setShowLibrary(!showLibrary)}
+              className="text-sm text-primary-600 hover:text-primary-700 flex items-center gap-1"
+            >
+              <Book className="w-4 h-4" />
+              {showLibrary ? 'Hide' : 'Show'} Product Library
+            </button>
+          </div>
+
           {/* Stocktake Items */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Items</label>
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>
@@ -312,7 +493,13 @@ const Stocktake: React.FC<StocktakeProps> = ({ workspaceId }) => {
                           onChange={(e) => handleItemChange(index, 'product', e.target.value)}
                           className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
                           placeholder="Product"
+                          list={`products-${index}`}
                         />
+                        <datalist id={`products-${index}`}>
+                          {products.map(p => (
+                            <option key={p._id || p.id} value={p.product} />
+                          ))}
+                        </datalist>
                       </td>
                       <td className="px-3 py-2">
                         <select
