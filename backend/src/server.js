@@ -22,6 +22,7 @@ const calendarRoutes = require('./routes/calendar');
 const plannerRoutes = require('./routes/planner');
 const adminRoutes = require('./routes/admin');
 const supportRoutes = require('./routes/support');
+const invoiceRoutes = require('./routes/invoices');
 
 // Initialize Express app
 const app = express();
@@ -113,6 +114,7 @@ app.use('/api/calendar', calendarRoutes);
 app.use('/api/planner', plannerRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/support', supportRoutes);
+app.use('/api/workspaces', invoiceRoutes);
 
 // Root route
 app.get('/', (req, res) => {

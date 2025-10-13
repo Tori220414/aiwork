@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Grid, List, Calendar, TrendingUp, Settings, Plus } from 'lucide-react';
+import { ArrowLeft, Grid, List, Calendar, TrendingUp, Plus, FileText, Pencil } from 'lucide-react';
 import api from '../services/api';
 import CalendarView from '../components/CalendarView';
 import EventModal from '../components/EventModal';
 import EventDetailModal from '../components/EventDetailModal';
+import InvoiceManager from '../components/InvoiceManager';
+import Whiteboard from '../components/Whiteboard';
 import type { EventFormData } from '../components/EventModal';
 
 interface Workspace {
@@ -81,6 +83,8 @@ const WorkspaceDetail: React.FC = () => {
   const fetchWorkspaceData = async () => {
     try {
       const response = await api.get(`/workspaces/${id}`);
+      console.log('Workspace data:', response.data);
+      console.log('Workspace name:', response.data.name);
       setWorkspace(response.data);
       setCurrentView(response.data.default_view || 'kanban');
     } catch (error) {
@@ -167,8 +171,20 @@ const WorkspaceDetail: React.FC = () => {
       case 'list': return <List className="w-4 h-4" />;
       case 'calendar': return <Calendar className="w-4 h-4" />;
       case 'timeline': return <TrendingUp className="w-4 h-4" />;
+      case 'invoices': return <FileText className="w-4 h-4" />;
+      case 'whiteboard': return <Pencil className="w-4 h-4" />;
       default: return <Grid className="w-4 h-4" />;
     }
+  };
+
+  const isBuilderWorkspace = () => {
+    const isBuilder = workspace?.name?.toLowerCase().includes('builder') ||
+                      workspace?.name?.toLowerCase().includes('contractor');
+    console.log('isBuilderWorkspace check:', {
+      workspaceName: workspace?.name,
+      isBuilder
+    });
+    return isBuilder;
   };
 
   const renderKanbanView = () => {
@@ -324,13 +340,10 @@ const WorkspaceDetail: React.FC = () => {
             {workspace.description && (
               <p className="text-white/90">{workspace.description}</p>
             )}
+            <p className="text-xs text-white/70 mt-1">
+              {isBuilderWorkspace() ? '✓ Builder workspace features enabled' : 'Standard workspace'}
+            </p>
           </div>
-          <button
-            onClick={() => navigate(`/workspaces/${id}/settings`)}
-            className="p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
-          >
-            <Settings className="w-5 h-5" />
-          </button>
         </div>
       </div>
 
@@ -351,6 +364,32 @@ const WorkspaceDetail: React.FC = () => {
               <span className="capitalize text-sm font-medium">{view}</span>
             </button>
           ))}
+          {isBuilderWorkspace() && (
+            <>
+              <button
+                onClick={() => setCurrentView('invoices')}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                  currentView === 'invoices'
+                    ? 'bg-primary-50 text-primary-700'
+                    : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                {getViewIcon('invoices')}
+                <span className="capitalize text-sm font-medium">Invoices</span>
+              </button>
+              <button
+                onClick={() => setCurrentView('whiteboard')}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                  currentView === 'whiteboard'
+                    ? 'bg-primary-50 text-primary-700'
+                    : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                {getViewIcon('whiteboard')}
+                <span className="capitalize text-sm font-medium">Whiteboard</span>
+              </button>
+            </>
+          )}
         </div>
 
         <button
@@ -385,6 +424,12 @@ const WorkspaceDetail: React.FC = () => {
               Switch to Kanban View
             </button>
           </div>
+        )}
+        {currentView === 'invoices' && isBuilderWorkspace() && (
+          <InvoiceManager workspaceId={id || ''} />
+        )}
+        {currentView === 'whiteboard' && isBuilderWorkspace() && (
+          <Whiteboard workspaceId={id || ''} />
         )}
       </div>
 
