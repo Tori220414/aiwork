@@ -199,8 +199,14 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
             user_id: userId,
             stripe_subscription_id: subscription.id,
             status: subscription.status,
-            current_period_start: new Date(subscription.current_period_start * 1000),
-            current_period_end: new Date(subscription.current_period_end * 1000)
+            plan_id: subscription.items.data[0]?.price?.id || 'pro_monthly',
+            amount: subscription.items.data[0]?.price?.unit_amount || 1099,
+            current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
+            current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+            trial_end: subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null,
+            canceled_at: subscription.canceled_at ? new Date(subscription.canceled_at * 1000).toISOString() : null
+          }, {
+            onConflict: 'stripe_subscription_id'
           });
         break;
 
@@ -214,6 +220,14 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
             subscription_status: 'canceled'
           })
           .eq('id', canceledUserId);
+
+        await supabase
+          .from('subscriptions')
+          .update({
+            status: 'canceled',
+            canceled_at: new Date().toISOString()
+          })
+          .eq('stripe_subscription_id', deletedSub.id);
         break;
 
       case 'invoice.payment_succeeded':
