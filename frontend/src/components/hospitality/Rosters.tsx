@@ -371,6 +371,52 @@ const Rosters: React.FC<RostersProps> = ({ workspaceId }) => {
     s.position.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // Helper function to organize roster data into a weekly grid
+  const getRosterGrid = (roster: Roster) => {
+    // Get all unique staff members from shifts
+    const staffNames = Array.from(new Set(roster.shifts.map(s => s.staff_name))).filter(Boolean);
+
+    // Get date range for the week
+    const startDate = new Date(roster.week_starting);
+    const endDate = new Date(roster.week_ending);
+    const days: Date[] = [];
+
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      days.push(new Date(d));
+    }
+
+    // Create grid data: map of staff -> map of date -> shift data
+    const grid: Record<string, Record<string, Shift | null>> = {};
+
+    staffNames.forEach(staffName => {
+      grid[staffName] = {};
+      days.forEach(day => {
+        const dateStr = day.toISOString().split('T')[0];
+        grid[staffName][dateStr] = null;
+      });
+    });
+
+    // Fill in shift data
+    roster.shifts.forEach(shift => {
+      if (shift.staff_name && shift.date) {
+        const dateStr = shift.date.split('T')[0];
+        if (grid[shift.staff_name] && grid[shift.staff_name][dateStr] !== undefined) {
+          grid[shift.staff_name][dateStr] = shift;
+        }
+      }
+    });
+
+    return { staffNames, days, grid };
+  };
+
+  const getDayName = (date: Date) => {
+    return date.toLocaleDateString('en-US', { weekday: 'short' });
+  };
+
+  const getDateStr = (date: Date) => {
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
   if (loading) {
     return <div className="flex justify-center py-12">
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
@@ -771,33 +817,65 @@ const Rosters: React.FC<RostersProps> = ({ workspaceId }) => {
                   </div>
                 </div>
 
-                {/* Shifts Table */}
+                {/* Weekly Grid View */}
                 <div className="overflow-x-auto">
-                  <table className="min-w-full">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Staff</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Position</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Date</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Time</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Hours</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {roster.shifts.map((shift, idx) => (
-                        <tr key={idx} className="hover:bg-gray-50">
-                          <td className="px-4 py-2 text-sm">{shift.staff_name}</td>
-                          <td className="px-4 py-2 text-sm">{shift.position}</td>
-                          <td className="px-4 py-2 text-sm">{new Date(shift.date).toLocaleDateString()}</td>
-                          <td className="px-4 py-2 text-sm">
-                            <Clock className="w-3 h-3 inline mr-1" />
-                            {shift.start_time} - {shift.end_time}
-                          </td>
-                          <td className="px-4 py-2 text-sm font-medium">{shift.hours.toFixed(1)}h</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  {(() => {
+                    const { staffNames, days, grid } = getRosterGrid(roster);
+                    return (
+                      <table className="min-w-full border-collapse">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 border sticky left-0 bg-gray-50 z-10">
+                              Day
+                            </th>
+                            {staffNames.map(staffName => (
+                              <th key={staffName} className="px-4 py-3 text-left text-xs font-medium text-gray-500 border min-w-[150px]">
+                                {staffName}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {days.map(day => {
+                            const dateStr = day.toISOString().split('T')[0];
+                            return (
+                              <tr key={dateStr} className="hover:bg-gray-50">
+                                <td className="px-4 py-3 border font-medium text-sm sticky left-0 bg-white z-10">
+                                  <div className="text-gray-900">{getDayName(day)}</div>
+                                  <div className="text-xs text-gray-500">{getDateStr(day)}</div>
+                                </td>
+                                {staffNames.map(staffName => {
+                                  const shift = grid[staffName][dateStr];
+                                  return (
+                                    <td key={`${staffName}-${dateStr}`} className="px-4 py-3 border text-sm align-top">
+                                      {shift ? (
+                                        <div className="space-y-1">
+                                          <div className="flex items-center gap-1 text-gray-900">
+                                            <Clock className="w-3 h-3 text-gray-400" />
+                                            <span>{shift.start_time} - {shift.end_time}</span>
+                                          </div>
+                                          <div className="text-xs font-medium text-primary-600">
+                                            {shift.hours.toFixed(1)}h
+                                          </div>
+                                          {shift.notes && (
+                                            <div className="text-xs text-gray-500 mt-1">
+                                              {shift.notes}
+                                            </div>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <span className="text-gray-300 text-center block">-</span>
+                                      )}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    );
+                  })()}
                 </div>
 
                 <div className="border-t pt-4 mt-4">
