@@ -20,6 +20,7 @@ const BrainDump: React.FC = () => {
   const [isSupported, setIsSupported] = useState(true);
   const recognitionRef = useRef<any>(null);
   const lastProcessedIndexRef = useRef<number>(0);
+  const processedTranscriptsRef = useRef<Set<string>>(new Set());
 
   const handleExtractTasks = async () => {
     if (!dumpText.trim()) {
@@ -120,17 +121,27 @@ const BrainDump: React.FC = () => {
 
     recognition.onstart = () => {
       setIsListening(true);
-      lastProcessedIndexRef.current = 0; // Reset the counter when starting
+      lastProcessedIndexRef.current = 0;
+      processedTranscriptsRef.current.clear(); // Clear processed transcripts when starting
       toast.success('Voice recording started. Speak now!', { icon: '🎤' });
     };
 
     recognition.onresult = (event: any) => {
-      // With interimResults = false, we only get final results
-      // Process only new results we haven't seen yet
+      // Mobile browsers may fire this multiple times for the same result
+      // Use a Set to track exact transcripts we've already added
       for (let i = lastProcessedIndexRef.current; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript;
-        setDumpText(prev => prev + transcript + ' ');
-        lastProcessedIndexRef.current = i + 1;
+        const result = event.results[i];
+        if (result.isFinal) {
+          const transcript = result[0].transcript.trim();
+
+          // Only add if we haven't seen this exact transcript before
+          if (!processedTranscriptsRef.current.has(transcript)) {
+            processedTranscriptsRef.current.add(transcript);
+            setDumpText(prev => prev + transcript + ' ');
+          }
+
+          lastProcessedIndexRef.current = i + 1;
+        }
       }
     };
 
@@ -149,7 +160,8 @@ const BrainDump: React.FC = () => {
 
     recognition.onend = () => {
       setIsListening(false);
-      lastProcessedIndexRef.current = 0; // Reset when recognition ends
+      lastProcessedIndexRef.current = 0;
+      processedTranscriptsRef.current.clear(); // Reset when recognition ends
     };
 
     recognitionRef.current = recognition;
@@ -170,11 +182,13 @@ const BrainDump: React.FC = () => {
     if (isListening) {
       recognitionRef.current?.stop();
       setIsListening(false);
-      lastProcessedIndexRef.current = 0; // Reset on manual stop
+      lastProcessedIndexRef.current = 0;
+      processedTranscriptsRef.current.clear(); // Reset on manual stop
       toast.success('Voice recording stopped', { icon: '⏸️' });
     } else {
       try {
-        lastProcessedIndexRef.current = 0; // Reset before starting
+        lastProcessedIndexRef.current = 0;
+        processedTranscriptsRef.current.clear(); // Reset before starting
         recognitionRef.current?.start();
       } catch (error) {
         console.error('Error starting recognition:', error);
