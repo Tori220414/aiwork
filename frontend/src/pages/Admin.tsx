@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Users, CreditCard, Ticket, Activity, Settings, TrendingUp, CheckCircle, AlertCircle, Search, Shield, ShieldOff, UserCheck, UserX, XCircle, DollarSign, Calendar } from 'lucide-react';
-import { adminService, AdminStats, User, Subscription } from '../services/adminService';
+import { Users, CreditCard, Ticket, Activity, Settings, TrendingUp, CheckCircle, AlertCircle, Search, Shield, ShieldOff, UserCheck, UserX, XCircle, DollarSign, Calendar, MessageSquare, Clock, Edit } from 'lucide-react';
+import { adminService, AdminStats, User, Subscription, SupportTicket, SystemSetting } from '../services/adminService';
 import toast from 'react-hot-toast';
 
 const Admin: React.FC = () => {
@@ -23,6 +23,20 @@ const Admin: React.FC = () => {
   const [subCurrentPage, setSubCurrentPage] = useState(1);
   const [subTotalPages, setSubTotalPages] = useState(1);
 
+  // Support Tickets State
+  const [tickets, setTickets] = useState<SupportTicket[]>([]);
+  const [ticketsLoading, setTicketsLoading] = useState(false);
+  const [ticketStatusFilter, setTicketStatusFilter] = useState('');
+  const [ticketPriorityFilter, setTicketPriorityFilter] = useState('');
+  const [ticketCurrentPage, setTicketCurrentPage] = useState(1);
+  const [ticketTotalPages, setTicketTotalPages] = useState(1);
+
+  // Settings State
+  const [settings, setSettings] = useState<SystemSetting[]>([]);
+  const [settingsLoading, setSettingsLoading] = useState(false);
+  const [editingSetting, setEditingSetting] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState<string>('');
+
   useEffect(() => {
     fetchStats();
   }, []);
@@ -32,8 +46,12 @@ const Admin: React.FC = () => {
       fetchUsers();
     } else if (activeTab === 'subscriptions') {
       fetchSubscriptions();
+    } else if (activeTab === 'tickets') {
+      fetchTickets();
+    } else if (activeTab === 'settings') {
+      fetchSettings();
     }
-  }, [activeTab, currentPage, userSearch, userStatusFilter, subCurrentPage, subStatusFilter]);
+  }, [activeTab, currentPage, userSearch, userStatusFilter, subCurrentPage, subStatusFilter, ticketCurrentPage, ticketStatusFilter, ticketPriorityFilter]);
 
   const fetchStats = async () => {
     try {
@@ -129,6 +147,90 @@ const Admin: React.FC = () => {
         return 'bg-gray-100 text-gray-800';
       default:
         return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const fetchTickets = async () => {
+    setTicketsLoading(true);
+    try {
+      const response = await adminService.getSupportTickets(ticketCurrentPage, 50, ticketStatusFilter, ticketPriorityFilter);
+      setTickets(response.tickets);
+      setTicketTotalPages(response.pagination.totalPages);
+    } catch (error: any) {
+      toast.error('Failed to load support tickets');
+      console.error('Error fetching tickets:', error);
+    } finally {
+      setTicketsLoading(false);
+    }
+  };
+
+  const handleUpdateTicket = async (ticketId: string, updates: any) => {
+    try {
+      await adminService.updateSupportTicket(ticketId, updates);
+      toast.success('Ticket updated successfully');
+      fetchTickets();
+      fetchStats();
+    } catch (error: any) {
+      toast.error('Failed to update ticket');
+      console.error('Error updating ticket:', error);
+    }
+  };
+
+  const getTicketStatusColor = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'open':
+        return 'bg-blue-100 text-blue-800';
+      case 'in-progress':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'waiting-user':
+        return 'bg-purple-100 text-purple-800';
+      case 'resolved':
+        return 'bg-green-100 text-green-800';
+      case 'closed':
+        return 'bg-gray-100 text-gray-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority.toLowerCase()) {
+      case 'urgent':
+        return 'bg-red-100 text-red-800';
+      case 'high':
+        return 'bg-orange-100 text-orange-800';
+      case 'normal':
+        return 'bg-blue-100 text-blue-800';
+      case 'low':
+        return 'bg-gray-100 text-gray-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const fetchSettings = async () => {
+    setSettingsLoading(true);
+    try {
+      const data = await adminService.getSettings();
+      setSettings(data);
+    } catch (error: any) {
+      toast.error('Failed to load system settings');
+      console.error('Error fetching settings:', error);
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
+  const handleUpdateSetting = async (settingId: string, value: any) => {
+    try {
+      await adminService.updateSetting(settingId, value);
+      toast.success('Setting updated successfully');
+      fetchSettings();
+      setEditingSetting(null);
+      setEditValue('');
+    } catch (error: any) {
+      toast.error('Failed to update setting');
+      console.error('Error updating setting:', error);
     }
   };
 
@@ -710,14 +812,164 @@ const Admin: React.FC = () => {
 
             {activeTab === 'tickets' && (
               <div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-4">Support Tickets</h2>
-                <div className="bg-gray-50 rounded-lg p-8 text-center">
-                  <Ticket className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-600 mb-2">Support ticket interface coming soon</p>
-                  <p className="text-sm text-gray-500">
-                    View, respond to, and manage user support requests
-                  </p>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-bold text-gray-900">Support Tickets</h2>
                 </div>
+
+                {/* Filters */}
+                <div className="flex flex-col sm:flex-row gap-4 mb-6">
+                  <select
+                    value={ticketStatusFilter}
+                    onChange={(e) => {
+                      setTicketStatusFilter(e.target.value);
+                      setTicketCurrentPage(1);
+                    }}
+                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  >
+                    <option value="">All Statuses</option>
+                    <option value="open">Open</option>
+                    <option value="in-progress">In Progress</option>
+                    <option value="waiting-user">Waiting User</option>
+                    <option value="resolved">Resolved</option>
+                    <option value="closed">Closed</option>
+                  </select>
+                  <select
+                    value={ticketPriorityFilter}
+                    onChange={(e) => {
+                      setTicketPriorityFilter(e.target.value);
+                      setTicketCurrentPage(1);
+                    }}
+                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  >
+                    <option value="">All Priorities</option>
+                    <option value="urgent">Urgent</option>
+                    <option value="high">High</option>
+                    <option value="normal">Normal</option>
+                    <option value="low">Low</option>
+                  </select>
+                </div>
+
+                {/* Tickets List */}
+                {ticketsLoading ? (
+                  <div className="flex justify-center py-12">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600" />
+                  </div>
+                ) : tickets.length === 0 ? (
+                  <div className="bg-gray-50 rounded-lg p-8 text-center">
+                    <Ticket className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600">No support tickets found</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-4">
+                      {tickets.map((ticket) => (
+                        <div key={ticket.id} className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow">
+                          <div className="flex items-start justify-between mb-4">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-3 mb-2">
+                                <h3 className="text-lg font-semibold text-gray-900">{ticket.subject}</h3>
+                                <span className={`px-2 py-1 text-xs font-semibold rounded ${getTicketStatusColor(ticket.status)}`}>
+                                  {ticket.status.replace('-', ' ').toUpperCase()}
+                                </span>
+                                <span className={`px-2 py-1 text-xs font-semibold rounded ${getPriorityColor(ticket.priority)}`}>
+                                  {ticket.priority.toUpperCase()}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-4 text-sm text-gray-500">
+                                <span className="flex items-center gap-1">
+                                  <Users className="w-4 h-4" />
+                                  {ticket.users.name} ({ticket.users.email})
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <Clock className="w-4 h-4" />
+                                  {new Date(ticket.created_at).toLocaleString()}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <MessageSquare className="w-4 h-4" />
+                                  {ticket.category}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <p className="text-gray-700 mb-4 whitespace-pre-wrap">{ticket.message}</p>
+
+                          {ticket.admin_notes && (
+                            <div className="bg-yellow-50 border border-yellow-200 rounded p-3 mb-4">
+                              <p className="text-sm font-medium text-yellow-800 mb-1">Admin Notes:</p>
+                              <p className="text-sm text-yellow-700">{ticket.admin_notes}</p>
+                            </div>
+                          )}
+
+                          {ticket.responses && ticket.responses.length > 0 && (
+                            <div className="border-t pt-4 mt-4">
+                              <p className="text-sm font-medium text-gray-700 mb-2">Responses ({ticket.responses.length}):</p>
+                              <div className="space-y-2">
+                                {ticket.responses.map((response, idx) => (
+                                  <div key={idx} className="bg-gray-50 rounded p-3">
+                                    <p className="text-sm text-gray-700">{response.message}</p>
+                                    <p className="text-xs text-gray-500 mt-1">
+                                      {new Date(response.created_at).toLocaleString()}
+                                    </p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="flex gap-2 mt-4">
+                            <select
+                              onChange={(e) => handleUpdateTicket(ticket.id, { status: e.target.value })}
+                              value={ticket.status}
+                              className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                            >
+                              <option value="open">Open</option>
+                              <option value="in-progress">In Progress</option>
+                              <option value="waiting-user">Waiting User</option>
+                              <option value="resolved">Resolved</option>
+                              <option value="closed">Closed</option>
+                            </select>
+                            <select
+                              onChange={(e) => handleUpdateTicket(ticket.id, { priority: e.target.value })}
+                              value={ticket.priority}
+                              className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                            >
+                              <option value="low">Low</option>
+                              <option value="normal">Normal</option>
+                              <option value="high">High</option>
+                              <option value="urgent">Urgent</option>
+                            </select>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Pagination */}
+                    {ticketTotalPages > 1 && (
+                      <div className="flex items-center justify-between mt-6">
+                        <div className="text-sm text-gray-700">
+                          Page {ticketCurrentPage} of {ticketTotalPages}
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setTicketCurrentPage(p => Math.max(1, p - 1))}
+                            disabled={ticketCurrentPage === 1}
+                            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Previous
+                          </button>
+                          <button
+                            onClick={() => setTicketCurrentPage(p => Math.min(ticketTotalPages, p + 1))}
+                            disabled={ticketCurrentPage === ticketTotalPages}
+                            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Next
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             )}
 
@@ -736,14 +988,107 @@ const Admin: React.FC = () => {
 
             {activeTab === 'settings' && (
               <div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-4">System Settings</h2>
-                <div className="bg-gray-50 rounded-lg p-8 text-center">
-                  <Settings className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-600 mb-2">System settings interface coming soon</p>
-                  <p className="text-sm text-gray-500">
-                    Configure maintenance mode, limits, and other system parameters
-                  </p>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-bold text-gray-900">System Settings</h2>
+                  <p className="text-sm text-gray-500">Superadmin only</p>
                 </div>
+
+                {settingsLoading ? (
+                  <div className="flex justify-center py-12">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600" />
+                  </div>
+                ) : settings.length === 0 ? (
+                  <div className="bg-gray-50 rounded-lg p-8 text-center">
+                    <Settings className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600">No system settings found</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Group settings by category */}
+                    {Object.entries(
+                      settings.reduce((acc, setting) => {
+                        if (!acc[setting.category]) acc[setting.category] = [];
+                        acc[setting.category].push(setting);
+                        return acc;
+                      }, {} as Record<string, SystemSetting[]>)
+                    ).map(([category, categorySettings]) => (
+                      <div key={category} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                        <div className="bg-gray-50 px-6 py-3 border-b border-gray-200">
+                          <h3 className="text-lg font-semibold text-gray-900 capitalize">{category}</h3>
+                        </div>
+                        <div className="divide-y divide-gray-200">
+                          {categorySettings.map((setting) => (
+                            <div key={setting.id} className="px-6 py-4">
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <h4 className="font-medium text-gray-900">{setting.key}</h4>
+                                  </div>
+                                  {setting.description && (
+                                    <p className="text-sm text-gray-500 mb-2">{setting.description}</p>
+                                  )}
+                                  {editingSetting === setting.id ? (
+                                    <div className="flex gap-2 mt-2">
+                                      <input
+                                        type="text"
+                                        value={editValue}
+                                        onChange={(e) => setEditValue(e.target.value)}
+                                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                                        placeholder="Enter new value"
+                                      />
+                                      <button
+                                        onClick={() => handleUpdateSetting(setting.id, editValue)}
+                                        className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                                      >
+                                        Save
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          setEditingSetting(null);
+                                          setEditValue('');
+                                        }}
+                                        className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                                      >
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-2">
+                                      <code className="px-3 py-1 bg-gray-100 text-gray-800 rounded text-sm font-mono">
+                                        {typeof setting.value === 'object'
+                                          ? JSON.stringify(setting.value)
+                                          : String(setting.value)}
+                                      </code>
+                                      <button
+                                        onClick={() => {
+                                          setEditingSetting(setting.id);
+                                          setEditValue(
+                                            typeof setting.value === 'object'
+                                              ? JSON.stringify(setting.value)
+                                              : String(setting.value)
+                                          );
+                                        }}
+                                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                        title="Edit setting"
+                                      >
+                                        <Edit className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  )}
+                                  {setting.updated_at && (
+                                    <p className="text-xs text-gray-400 mt-1">
+                                      Last updated: {new Date(setting.updated_at).toLocaleString()}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
