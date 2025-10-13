@@ -441,6 +441,11 @@ Guidelines:
 - Include 3-5 sample tasks that demonstrate the workspace use case
 - Make column names specific to the use case
 - Ensure the design is professional and functional
+- **IMPORTANT - Workspace Type Detection**: The name field MUST include specific keywords based on the workspace type:
+  * For hospitality/restaurants/pubs/hotels/bars/liquor/gaming/RSA/compliance: Include "Hospitality", "Pub", "Hotel", "Club", or "Licensee" in the name
+  * For construction/building/trades/contractors: Include "Builder" or "Contractor" in the name
+  * Examples: "Hospitality Management", "Pub Operations", "Hotel Admin", "Club Manager", "Builder Projects", "Contractor Admin"
+  * This is critical for enabling specialized features - if the request mentions orders, stocktakes, invoices, rosters, gaming, or bar/restaurant operations, use hospitality keywords
 - Return valid JSON only
 `;
 

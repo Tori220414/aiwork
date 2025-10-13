@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Grid, List, Calendar, TrendingUp, Plus, FileText, Pencil, ShoppingCart, Package } from 'lucide-react';
+import { ArrowLeft, Grid, List, Calendar, TrendingUp, Plus, FileText, Pencil, ShoppingCart, Package, Trash2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import api from '../services/api';
 import CalendarView from '../components/CalendarView';
 import EventModal from '../components/EventModal';
@@ -164,6 +165,21 @@ const WorkspaceDetail: React.FC = () => {
       setSelectedEvent(undefined);
     } catch (error) {
       console.error('Error saving event:', error);
+    }
+  };
+
+  const handleDeleteWorkspace = async () => {
+    if (!window.confirm(`Are you sure you want to delete "${workspace?.name}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      await api.delete(`/workspaces/${id}`);
+      toast.success('Workspace deleted successfully');
+      navigate('/workspaces');
+    } catch (error: any) {
+      console.error('Error deleting workspace:', error);
+      toast.error(error.response?.data?.message || 'Failed to delete workspace');
     }
   };
 
@@ -363,6 +379,14 @@ const WorkspaceDetail: React.FC = () => {
               {!isBuilderWorkspace() && !isHospitalityWorkspace() && 'Standard workspace'}
             </p>
           </div>
+          <button
+            onClick={handleDeleteWorkspace}
+            className="flex items-center gap-2 px-4 py-2 bg-red-500/20 text-white hover:bg-red-500/30 rounded-lg border border-white/20 transition-colors"
+            title="Delete Workspace"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span className="text-sm">Delete Workspace</span>
+          </button>
         </div>
       </div>
 

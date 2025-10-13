@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, ShoppingCart, Check, X } from 'lucide-react';
+import { Plus, Edit2, Trash2, ShoppingCart, Check, X, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
 
@@ -187,6 +187,43 @@ const Orders: React.FC<OrdersProps> = ({ workspaceId }) => {
     } catch (error: any) {
       toast.error('Failed to update status');
     }
+  };
+
+  const downloadOrder = (order: Order) => {
+    const csv = [
+      ['Order Number', order.order_number],
+      ['Supplier', order.supplier],
+      ['Supplier Contact', order.supplier_contact || ''],
+      ['Order Date', new Date(order.order_date).toLocaleDateString()],
+      ['Delivery Date', new Date(order.delivery_date).toLocaleDateString()],
+      ['Status', order.status.toUpperCase()],
+      [''],
+      ['Product', 'Quantity', 'Unit', 'Price', 'Total'],
+      ...order.items.map(item => [
+        item.product,
+        item.quantity.toString(),
+        item.unit,
+        `$${item.price.toFixed(2)}`,
+        `$${item.total.toFixed(2)}`
+      ]),
+      [''],
+      ['Subtotal', '', '', '', `$${order.subtotal.toFixed(2)}`],
+      ['GST (10%)', '', '', '', `$${order.tax_amount.toFixed(2)}`],
+      ['Total', '', '', '', `$${order.total.toFixed(2)}`],
+      [''],
+      ['Notes', order.notes || '']
+    ].map(row => row.join(',')).join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${order.order_number}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+    toast.success('Order downloaded');
   };
 
   const getStatusColor = (status: string) => {
@@ -428,6 +465,13 @@ const Orders: React.FC<OrdersProps> = ({ workspaceId }) => {
                   <div className="text-right">
                     <p className="text-2xl font-bold text-gray-900">${order.total.toFixed(2)}</p>
                     <div className="flex items-center gap-2 mt-2">
+                      <button
+                        onClick={() => downloadOrder(order)}
+                        className="p-2 text-green-600 hover:bg-green-50 rounded-lg"
+                        title="Download Order"
+                      >
+                        <Download className="w-4 h-4" />
+                      </button>
                       <button
                         onClick={() => handleEdit(order)}
                         className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
