@@ -129,6 +129,63 @@ router.post('/:workspaceId/staff', async (req, res) => {
   }
 });
 
+// Update a staff member
+router.put('/:workspaceId/staff/:staffId', async (req, res) => {
+  try {
+    const { workspaceId, staffId } = req.params;
+    const { name, position, phone, email } = req.body;
+    const supabase = getSupabase();
+
+    // Verify user has access to workspace and staff
+    const { data: staff, error: staffError } = await supabase
+      .from('staff')
+      .select('*, workspaces!inner(user_id)')
+      .eq('id', staffId)
+      .eq('workspace_id', workspaceId)
+      .single();
+
+    if (staffError || !staff || staff.workspaces.user_id !== req.user.id) {
+      return res.status(404).json({
+        success: false,
+        message: 'Staff member not found'
+      });
+    }
+
+    // Update staff member
+    const { data: updatedStaff, error } = await supabase
+      .from('staff')
+      .update({
+        name,
+        position,
+        phone: phone || null,
+        email: email || null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', staffId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating staff:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to update staff member'
+      });
+    }
+
+    res.json({
+      success: true,
+      staff: updatedStaff
+    });
+  } catch (error) {
+    console.error('Error in update staff:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+});
+
 // Delete a staff member
 router.delete('/:workspaceId/staff/:staffId', async (req, res) => {
   try {

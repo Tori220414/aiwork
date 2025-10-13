@@ -46,6 +46,14 @@ const Rosters: React.FC<RostersProps> = ({ workspaceId }) => {
   const [showLibrary, setShowLibrary] = useState(false);
   const [editingRoster, setEditingRoster] = useState<Roster | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
+  const [showStaffForm, setShowStaffForm] = useState(false);
+
+  // Staff form state
+  const [staffName, setStaffName] = useState('');
+  const [staffPosition, setStaffPosition] = useState('Bartender');
+  const [staffPhone, setStaffPhone] = useState('');
+  const [staffEmail, setStaffEmail] = useState('');
 
   // Form state
   const [weekStarting, setWeekStarting] = useState('');
@@ -98,6 +106,54 @@ const Rosters: React.FC<RostersProps> = ({ workspaceId }) => {
     } catch (error: any) {
       console.error('Error saving staff:', error);
     }
+  };
+
+  const handleEditStaff = (staff: StaffMember) => {
+    setEditingStaff(staff);
+    setStaffName(staff.name);
+    setStaffPosition(staff.position);
+    setStaffPhone(staff.phone || '');
+    setStaffEmail(staff.email || '');
+    setShowStaffForm(true);
+  };
+
+  const handleStaffSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!staffName) {
+      toast.error('Please enter a staff name');
+      return;
+    }
+
+    const staffData = {
+      name: staffName,
+      position: staffPosition,
+      phone: staffPhone,
+      email: staffEmail
+    };
+
+    try {
+      if (editingStaff) {
+        await api.put(`/workspaces/${workspaceId}/staff/${editingStaff._id || editingStaff.id}`, staffData);
+        toast.success('Staff member updated successfully');
+      } else {
+        await api.post(`/workspaces/${workspaceId}/staff`, staffData);
+        toast.success('Staff member added successfully');
+      }
+      fetchStaff();
+      resetStaffForm();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to save staff member');
+    }
+  };
+
+  const resetStaffForm = () => {
+    setEditingStaff(null);
+    setStaffName('');
+    setStaffPosition('Bartender');
+    setStaffPhone('');
+    setStaffEmail('');
+    setShowStaffForm(false);
   };
 
   const deleteStaff = async (staffId: string) => {
@@ -352,12 +408,24 @@ const Rosters: React.FC<RostersProps> = ({ workspaceId }) => {
         <div className="bg-white rounded-xl shadow-md p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">Staff Library</h3>
-            <button
-              onClick={() => setShowLibrary(false)}
-              className="p-2 hover:bg-gray-100 rounded-lg"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  resetStaffForm();
+                  setShowStaffForm(true);
+                }}
+                className="flex items-center gap-1 px-3 py-1.5 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+              >
+                <Plus className="w-3 h-3" />
+                Add Staff
+              </button>
+              <button
+                onClick={() => setShowLibrary(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           <div className="mb-4">
@@ -392,13 +460,22 @@ const Rosters: React.FC<RostersProps> = ({ workspaceId }) => {
                     <td className="px-4 py-2 text-sm text-gray-500">{staff.phone || '-'}</td>
                     <td className="px-4 py-2 text-sm text-gray-500">{staff.email || '-'}</td>
                     <td className="px-4 py-2">
-                      <button
-                        onClick={() => deleteStaff(staff._id || staff.id || '')}
-                        className="p-1 text-red-600 hover:bg-red-50 rounded"
-                        title="Delete"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => handleEditStaff(staff)}
+                          className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                          title="Edit"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => deleteStaff(staff._id || staff.id || '')}
+                          className="p-1 text-red-600 hover:bg-red-50 rounded"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -410,6 +487,88 @@ const Rosters: React.FC<RostersProps> = ({ workspaceId }) => {
                 <p className="text-sm">Staff will be automatically saved when you create rosters</p>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Staff Edit/Add Form Modal */}
+      {showStaffForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              {editingStaff ? 'Edit Staff Member' : 'Add Staff Member'}
+            </h3>
+            <form onSubmit={handleStaffSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Name *
+                </label>
+                <input
+                  type="text"
+                  value={staffName}
+                  onChange={(e) => setStaffName(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Position *
+                </label>
+                <select
+                  value={staffPosition}
+                  onChange={(e) => setStaffPosition(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                >
+                  {positions.map(pos => (
+                    <option key={pos} value={pos}>{pos}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Phone
+                </label>
+                <input
+                  type="tel"
+                  value={staffPhone}
+                  onChange={(e) => setStaffPhone(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  placeholder="(123) 456-7890"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={staffEmail}
+                  onChange={(e) => setStaffEmail(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  placeholder="staff@example.com"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={resetStaffForm}
+                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                >
+                  {editingStaff ? 'Update' : 'Add'} Staff
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
