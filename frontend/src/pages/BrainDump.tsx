@@ -125,19 +125,16 @@ const BrainDump: React.FC = () => {
     };
 
     recognition.onresult = (event: any) => {
-      let finalTranscript = '';
+      // On mobile, we only want to process the very last result if it's final
+      // This prevents accumulation of interim results
+      const lastResultIndex = event.results.length - 1;
+      const lastResult = event.results[lastResultIndex];
 
-      // Only process results we haven't seen yet
-      // This prevents duplicate text on mobile browsers
-      for (let i = lastProcessedIndexRef.current; i < event.results.length; i++) {
-        if (event.results[i].isFinal) {
-          finalTranscript += event.results[i][0].transcript + ' ';
-          lastProcessedIndexRef.current = i + 1; // Update last processed index
-        }
-      }
-
-      if (finalTranscript) {
-        setDumpText(prev => prev + finalTranscript);
+      // Only process if this is a final result and we haven't processed it yet
+      if (lastResult.isFinal && lastResultIndex >= lastProcessedIndexRef.current) {
+        const transcript = lastResult[0].transcript;
+        setDumpText(prev => prev + transcript + ' ');
+        lastProcessedIndexRef.current = lastResultIndex + 1;
       }
     };
 
