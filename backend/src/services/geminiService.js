@@ -16,49 +16,51 @@ class GeminiService {
 
   async extractTasksFromText(text) {
     const prompt = `
-Analyze this text and extract ALL actionable tasks. For each complex task, create a main task followed by individual subtasks.
+Analyze this text and extract ALL actionable tasks. For complex tasks, include subtasks within the task object.
 
 Text: "${text}"
 
 Return ONLY a valid JSON array with this exact format (no markdown, no code blocks, just JSON):
 [
   {
-    "title": "Main Task Title",
+    "title": "Complete Task Title",
     "description": "Overview of what needs to be accomplished",
     "priority": "low|medium|high|urgent",
     "estimatedTime": 120,
     "category": "work|personal|meeting|email|planning|learning|health|other",
     "suggestedDeadline": "2025-10-15",
-    "tags": ["main-task"]
+    "tags": [],
+    "subtasks": [
+      {
+        "title": "Step 1: Specific first action",
+        "completed": false,
+        "description": "What this step involves"
+      },
+      {
+        "title": "Step 2: Specific second action",
+        "completed": false,
+        "description": "What this step involves"
+      }
+    ]
   },
   {
-    "title": "Step 1: Specific first action",
-    "description": "Detailed description of this specific step",
-    "priority": "low|medium|high|urgent",
+    "title": "Simple task without subtasks",
+    "description": "A straightforward task that doesn't need breakdown",
+    "priority": "medium",
     "estimatedTime": 30,
-    "category": "work|personal|meeting|email|planning|learning|health|other",
-    "suggestedDeadline": "2025-10-12",
-    "tags": ["subtask"]
-  },
-  {
-    "title": "Step 2: Specific second action",
-    "description": "Detailed description of this specific step",
-    "priority": "low|medium|high|urgent",
-    "estimatedTime": 30,
-    "category": "work|personal|meeting|email|planning|learning|health|other",
-    "suggestedDeadline": "2025-10-13",
-    "tags": ["subtask"]
+    "category": "work",
+    "tags": [],
+    "subtasks": []
   }
 ]
 
 Rules:
-- For each complex task, create ONE main task entry first
-- Then create SEPARATE task entries for each step/subtask
-- Each subtask should be a complete, actionable task on its own
-- Main tasks should have "main-task" tag, subtasks should have "subtask" tag
+- For complex tasks that require multiple steps, include subtasks array within the task
+- For simple tasks, use empty subtasks array
+- Each subtask should have: title, completed (always false initially), and optional description
+- Main task estimatedTime should account for all subtasks
 - Order subtasks logically (Step 1, Step 2, etc.)
-- Estimate realistic time for each individual task
-- Suggest appropriate deadlines (subtasks should be before main task deadline)
+- Suggest appropriate deadlines
 - Return valid JSON only
 `;
 
