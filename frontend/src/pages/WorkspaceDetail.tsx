@@ -457,6 +457,17 @@ const WorkspaceDetail: React.FC = () => {
                 {getViewIcon('stocktake')}
                 <span className="capitalize text-sm font-medium">Stocktake</span>
               </button>
+              <button
+                onClick={() => setCurrentView('invoices')}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                  currentView === 'invoices'
+                    ? 'bg-primary-50 text-primary-700'
+                    : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                {getViewIcon('invoices')}
+                <span className="capitalize text-sm font-medium">Invoices</span>
+              </button>
             </>
           )}
         </div>
@@ -494,7 +505,7 @@ const WorkspaceDetail: React.FC = () => {
             </button>
           </div>
         )}
-        {currentView === 'invoices' && isBuilderWorkspace() && (
+        {currentView === 'invoices' && (isBuilderWorkspace() || isHospitalityWorkspace()) && (
           <InvoiceManager workspaceId={id || ''} />
         )}
         {currentView === 'whiteboard' && isBuilderWorkspace() && (
