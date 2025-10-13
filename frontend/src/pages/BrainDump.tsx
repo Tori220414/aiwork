@@ -19,7 +19,8 @@ const BrainDump: React.FC = () => {
   const [isListening, setIsListening] = useState(false);
   const [isSupported, setIsSupported] = useState(true);
   const recognitionRef = useRef<any>(null);
-  const fullTranscriptRef = useRef<string>('');
+  const pendingTranscriptRef = useRef<string>('');
+  const debounceTimerRef = useRef<any>(null);
 
   const handleExtractTasks = async () => {
     if (!dumpText.trim()) {
@@ -120,31 +121,36 @@ const BrainDump: React.FC = () => {
 
     recognition.onstart = () => {
       setIsListening(true);
-      fullTranscriptRef.current = ''; // Reset accumulated transcript
+      pendingTranscriptRef.current = '';
       toast.success('Voice recording started. Speak now!', { icon: '🎤' });
     };
 
     recognition.onresult = (event: any) => {
-      // Build the complete current transcript from all final results
-      let currentFullTranscript = '';
+      // Clear any pending debounce timer
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
 
-      for (let i = 0; i < event.results.length; i++) {
+      // Get only the latest final result
+      let latestFinalTranscript = '';
+      for (let i = event.results.length - 1; i >= 0; i--) {
         if (event.results[i].isFinal) {
-          currentFullTranscript += event.results[i][0].transcript + ' ';
+          latestFinalTranscript = event.results[i][0].transcript.trim();
+          break;
         }
       }
 
-      currentFullTranscript = currentFullTranscript.trim();
+      if (latestFinalTranscript) {
+        // Store it temporarily and wait for events to settle
+        pendingTranscriptRef.current = latestFinalTranscript;
 
-      // Only add the new part that we haven't seen before
-      if (currentFullTranscript && currentFullTranscript !== fullTranscriptRef.current) {
-        // Calculate what's new by removing what we've already processed
-        const newText = currentFullTranscript.substring(fullTranscriptRef.current.length).trim();
-
-        if (newText) {
-          setDumpText(prev => prev + newText + ' ');
-          fullTranscriptRef.current = currentFullTranscript;
-        }
+        // Only add after 300ms of no new events (debounce)
+        debounceTimerRef.current = setTimeout(() => {
+          if (pendingTranscriptRef.current) {
+            setDumpText(prev => prev + pendingTranscriptRef.current + ' ');
+            pendingTranscriptRef.current = '';
+          }
+        }, 300);
       }
     };
 
@@ -163,7 +169,10 @@ const BrainDump: React.FC = () => {
 
     recognition.onend = () => {
       setIsListening(false);
-      fullTranscriptRef.current = ''; // Reset when recognition ends
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      pendingTranscriptRef.current = '';
     };
 
     recognitionRef.current = recognition;
@@ -184,11 +193,14 @@ const BrainDump: React.FC = () => {
     if (isListening) {
       recognitionRef.current?.stop();
       setIsListening(false);
-      fullTranscriptRef.current = ''; // Reset on manual stop
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      pendingTranscriptRef.current = '';
       toast.success('Voice recording stopped', { icon: '⏸️' });
     } else {
       try {
-        fullTranscriptRef.current = ''; // Reset before starting
+        pendingTranscriptRef.current = '';
         recognitionRef.current?.start();
       } catch (error) {
         console.error('Error starting recognition:', error);
