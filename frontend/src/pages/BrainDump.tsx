@@ -19,6 +19,7 @@ const BrainDump: React.FC = () => {
   const [isListening, setIsListening] = useState(false);
   const [isSupported, setIsSupported] = useState(true);
   const recognitionRef = useRef<any>(null);
+  const lastProcessedIndexRef = useRef<number>(0);
 
   const handleExtractTasks = async () => {
     if (!dumpText.trim()) {
@@ -119,19 +120,19 @@ const BrainDump: React.FC = () => {
 
     recognition.onstart = () => {
       setIsListening(true);
+      lastProcessedIndexRef.current = 0; // Reset the counter when starting
       toast.success('Voice recording started. Speak now!', { icon: '🎤' });
     };
 
     recognition.onresult = (event: any) => {
-      let interimTranscript = '';
       let finalTranscript = '';
 
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript;
+      // Only process results we haven't seen yet
+      // This prevents duplicate text on mobile browsers
+      for (let i = lastProcessedIndexRef.current; i < event.results.length; i++) {
         if (event.results[i].isFinal) {
-          finalTranscript += transcript + ' ';
-        } else {
-          interimTranscript += transcript;
+          finalTranscript += event.results[i][0].transcript + ' ';
+          lastProcessedIndexRef.current = i + 1; // Update last processed index
         }
       }
 
@@ -155,6 +156,7 @@ const BrainDump: React.FC = () => {
 
     recognition.onend = () => {
       setIsListening(false);
+      lastProcessedIndexRef.current = 0; // Reset when recognition ends
     };
 
     recognitionRef.current = recognition;
@@ -175,9 +177,11 @@ const BrainDump: React.FC = () => {
     if (isListening) {
       recognitionRef.current?.stop();
       setIsListening(false);
+      lastProcessedIndexRef.current = 0; // Reset on manual stop
       toast.success('Voice recording stopped', { icon: '⏸️' });
     } else {
       try {
+        lastProcessedIndexRef.current = 0; // Reset before starting
         recognitionRef.current?.start();
       } catch (error) {
         console.error('Error starting recognition:', error);
