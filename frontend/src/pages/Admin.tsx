@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Users, CreditCard, Ticket, Activity, Settings, TrendingUp, CheckCircle, AlertCircle } from 'lucide-react';
-import { adminService, AdminStats } from '../services/adminService';
+import { Users, CreditCard, Ticket, Activity, Settings, TrendingUp, CheckCircle, AlertCircle, Search, Shield, ShieldOff, UserCheck, UserX } from 'lucide-react';
+import { adminService, AdminStats, User } from '../services/adminService';
 import toast from 'react-hot-toast';
 
 const Admin: React.FC = () => {
@@ -8,9 +8,23 @@ const Admin: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'subscriptions' | 'tickets' | 'activity' | 'settings'>('overview');
 
+  // User Management State
+  const [users, setUsers] = useState<User[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [userSearch, setUserSearch] = useState('');
+  const [userStatusFilter, setUserStatusFilter] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+
   useEffect(() => {
     fetchStats();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'users') {
+      fetchUsers();
+    }
+  }, [activeTab, currentPage, userSearch, userStatusFilter]);
 
   const fetchStats = async () => {
     try {
@@ -21,6 +35,43 @@ const Admin: React.FC = () => {
       console.error('Error fetching admin stats:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchUsers = async () => {
+    setUsersLoading(true);
+    try {
+      const response = await adminService.getUsers(currentPage, 50, userSearch, userStatusFilter);
+      setUsers(response.users);
+      setTotalPages(response.pagination.totalPages);
+    } catch (error: any) {
+      toast.error('Failed to load users');
+      console.error('Error fetching users:', error);
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+
+  const handleToggleUserStatus = async (userId: string, currentStatus: boolean) => {
+    try {
+      await adminService.updateUserStatus(userId, !currentStatus);
+      toast.success(`User ${!currentStatus ? 'activated' : 'deactivated'} successfully`);
+      fetchUsers();
+      fetchStats(); // Refresh stats
+    } catch (error: any) {
+      toast.error('Failed to update user status');
+      console.error('Error updating user status:', error);
+    }
+  };
+
+  const handleToggleAdminStatus = async (userId: string, currentStatus: boolean) => {
+    try {
+      await adminService.updateUserAdmin(userId, !currentStatus, []);
+      toast.success(`Admin privileges ${!currentStatus ? 'granted' : 'revoked'} successfully`);
+      fetchUsers();
+    } catch (error: any) {
+      toast.error('Failed to update admin status');
+      console.error('Error updating admin status:', error);
     }
   };
 
@@ -234,14 +285,202 @@ const Admin: React.FC = () => {
 
             {activeTab === 'users' && (
               <div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-4">User Management</h2>
-                <div className="bg-gray-50 rounded-lg p-8 text-center">
-                  <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-600 mb-2">User management interface coming soon</p>
-                  <p className="text-sm text-gray-500">
-                    View, activate/deactivate users, and manage admin permissions
-                  </p>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-bold text-gray-900">User Management</h2>
                 </div>
+
+                {/* Search and Filters */}
+                <div className="flex flex-col sm:flex-row gap-4 mb-6">
+                  <div className="flex-1 relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                    <input
+                      type="text"
+                      placeholder="Search users by name or email..."
+                      value={userSearch}
+                      onChange={(e) => {
+                        setUserSearch(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    />
+                  </div>
+                  <select
+                    value={userStatusFilter}
+                    onChange={(e) => {
+                      setUserStatusFilter(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  >
+                    <option value="">All Users</option>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                    <option value="admin">Admins</option>
+                  </select>
+                </div>
+
+                {/* Users Table */}
+                {usersLoading ? (
+                  <div className="flex justify-center py-12">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600" />
+                  </div>
+                ) : users.length === 0 ? (
+                  <div className="bg-gray-50 rounded-lg p-8 text-center">
+                    <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600">No users found</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              User
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Email
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Joined
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Status
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Role
+                            </th>
+                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Actions
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {users.map((user) => (
+                            <tr key={user.id} className="hover:bg-gray-50">
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="flex items-center">
+                                  <div className="h-10 w-10 flex-shrink-0">
+                                    <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center">
+                                      <span className="text-primary-700 font-medium text-sm">
+                                        {user.name.charAt(0).toUpperCase()}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="ml-4">
+                                    <div className="text-sm font-medium text-gray-900">{user.name}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="text-sm text-gray-900">{user.email}</div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="text-sm text-gray-500">
+                                  {new Date(user.created_at).toLocaleDateString()}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                  user.is_active
+                                    ? 'bg-green-100 text-green-800'
+                                    : 'bg-red-100 text-red-800'
+                                }`}>
+                                  {user.is_active ? 'Active' : 'Inactive'}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="flex items-center gap-1">
+                                  {user.is_superadmin && (
+                                    <span className="px-2 py-1 text-xs font-semibold rounded bg-purple-100 text-purple-800">
+                                      Superadmin
+                                    </span>
+                                  )}
+                                  {user.is_admin && !user.is_superadmin && (
+                                    <span className="px-2 py-1 text-xs font-semibold rounded bg-blue-100 text-blue-800">
+                                      Admin
+                                    </span>
+                                  )}
+                                  {!user.is_admin && !user.is_superadmin && (
+                                    <span className="px-2 py-1 text-xs font-semibold rounded bg-gray-100 text-gray-800">
+                                      User
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                <div className="flex items-center justify-end gap-2">
+                                  {!user.is_superadmin && (
+                                    <>
+                                      <button
+                                        onClick={() => handleToggleUserStatus(user.id, user.is_active)}
+                                        className={`p-2 rounded-lg transition-colors ${
+                                          user.is_active
+                                            ? 'text-red-600 hover:bg-red-50'
+                                            : 'text-green-600 hover:bg-green-50'
+                                        }`}
+                                        title={user.is_active ? 'Deactivate user' : 'Activate user'}
+                                      >
+                                        {user.is_active ? (
+                                          <UserX className="w-5 h-5" />
+                                        ) : (
+                                          <UserCheck className="w-5 h-5" />
+                                        )}
+                                      </button>
+                                      <button
+                                        onClick={() => handleToggleAdminStatus(user.id, user.is_admin)}
+                                        className={`p-2 rounded-lg transition-colors ${
+                                          user.is_admin
+                                            ? 'text-orange-600 hover:bg-orange-50'
+                                            : 'text-blue-600 hover:bg-blue-50'
+                                        }`}
+                                        title={user.is_admin ? 'Revoke admin' : 'Grant admin'}
+                                      >
+                                        {user.is_admin ? (
+                                          <ShieldOff className="w-5 h-5" />
+                                        ) : (
+                                          <Shield className="w-5 h-5" />
+                                        )}
+                                      </button>
+                                    </>
+                                  )}
+                                  {user.is_superadmin && (
+                                    <span className="text-xs text-gray-500 italic">Protected</span>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Pagination */}
+                    {totalPages > 1 && (
+                      <div className="flex items-center justify-between mt-6 px-4">
+                        <div className="text-sm text-gray-700">
+                          Page {currentPage} of {totalPages}
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                            disabled={currentPage === 1}
+                            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Previous
+                          </button>
+                          <button
+                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                            disabled={currentPage === totalPages}
+                            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Next
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             )}
 
