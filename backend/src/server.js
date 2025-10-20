@@ -55,6 +55,7 @@ const corsOptions = {
     const allowedOrigins = [
       'http://localhost:3000',
       'https://aiwork-sooty.vercel.app',
+      'https://aiwork-dyrfjnx1m-tori220414s-projects.vercel.app',
       process.env.CORS_ORIGIN
     ].filter(Boolean);
 
