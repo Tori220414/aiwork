@@ -14,6 +14,10 @@ interface Workspace {
   background_value: string;
   primary_color: string;
   secondary_color: string;
+  workspace_type?: string;
+  isPersonal?: boolean;
+  memberRole?: string;
+  memberJoinedAt?: string;
 }
 
 interface Template {
@@ -36,6 +40,7 @@ const Workspaces: React.FC = () => {
   const [showAIModal, setShowAIModal] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
   const [workspaceName, setWorkspaceName] = useState('');
+  const [workspaceType, setWorkspaceType] = useState<'personal' | 'team'>('personal');
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
@@ -58,7 +63,7 @@ const Workspaces: React.FC = () => {
     }
   };
 
-  const createWorkspace = async (name: string, description: string) => {
+  const createWorkspace = async (name: string, description: string, type: 'personal' | 'team') => {
     try {
       setCreating(true);
       await api.post('/workspaces', {
@@ -67,13 +72,17 @@ const Workspaces: React.FC = () => {
         default_view: 'kanban',
         theme: 'light',
         background_type: 'gradient',
-        background_value: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        primary_color: '#667eea',
-        secondary_color: '#764ba2'
+        background_value: type === 'team'
+          ? 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)'
+          : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        primary_color: type === 'team' ? '#4facfe' : '#667eea',
+        secondary_color: type === 'team' ? '#00f2fe' : '#764ba2',
+        workspace_type: type
       });
       await fetchData();
       setShowCreateModal(false);
       setWorkspaceName('');
+      setWorkspaceType('personal');
     } catch (error) {
       console.error('Error creating workspace:', error);
     } finally {
@@ -161,59 +170,102 @@ const Workspaces: React.FC = () => {
         </div>
       </div>
 
-      {/* My Workspaces */}
+      {/* Personal Workspaces */}
       <div>
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">My Workspaces</h2>
-        {workspaces.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-lg border-2 border-dashed border-gray-300">
-            <Layers className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600 mb-4">No workspaces yet</p>
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="inline-flex items-center space-x-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Create Your First Workspace</span>
-            </button>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Personal Workspaces</h2>
+        {workspaces.filter(w => w.isPersonal !== false && (!w.workspace_type || w.workspace_type === 'personal')).length === 0 ? (
+          <div className="text-center py-8 bg-gray-50 rounded-lg mb-6">
+            <p className="text-gray-500">No personal workspaces</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {workspaces.map((workspace) => (
-              <div
-                key={workspace._id || workspace.id}
-                onClick={() => navigate(`/workspaces/${workspace._id || workspace.id}`)}
-                className="bg-white rounded-lg border border-gray-200 hover:border-primary-300 hover:shadow-md transition-all cursor-pointer overflow-hidden"
-              >
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+            {workspaces
+              .filter(w => w.isPersonal !== false && (!w.workspace_type || w.workspace_type === 'personal'))
+              .map((workspace) => (
                 <div
-                  className="h-32"
-                  style={{
-                    background: workspace.background_type === 'gradient'
-                      ? workspace.background_value
-                      : workspace.primary_color
-                  }}
-                />
-                <div className="p-4">
-                  <h3 className="font-semibold text-gray-900 mb-1">{workspace.name}</h3>
-                  <p className="text-sm text-gray-500 mb-3 line-clamp-2">{workspace.description}</p>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2 text-xs text-gray-500">
-                      {getViewIcon(workspace.default_view)}
-                      <span className="capitalize">{workspace.default_view}</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <span
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: workspace.primary_color }}
-                      />
-                      <span
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: workspace.secondary_color }}
-                      />
+                  key={workspace._id || workspace.id}
+                  onClick={() => navigate(`/workspaces/${workspace._id || workspace.id}`)}
+                  className="bg-white rounded-lg border border-gray-200 hover:border-primary-300 hover:shadow-md transition-all cursor-pointer overflow-hidden"
+                >
+                  <div
+                    className="h-32"
+                    style={{
+                      background: workspace.background_type === 'gradient'
+                        ? workspace.background_value
+                        : workspace.primary_color
+                    }}
+                  />
+                  <div className="p-4">
+                    <h3 className="font-semibold text-gray-900 mb-1">{workspace.name}</h3>
+                    <p className="text-sm text-gray-500 mb-3 line-clamp-2">{workspace.description}</p>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2 text-xs text-gray-500">
+                        {getViewIcon(workspace.default_view)}
+                        <span className="capitalize">{workspace.default_view}</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <span
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: workspace.primary_color }}
+                        />
+                        <span
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: workspace.secondary_color }}
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
+          </div>
+        )}
+      </div>
+
+      {/* Team Workspaces */}
+      <div>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Team Workspaces</h2>
+        {workspaces.filter(w => w.workspace_type === 'team').length === 0 ? (
+          <div className="text-center py-8 bg-gray-50 rounded-lg">
+            <p className="text-gray-500">No team workspaces yet</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {workspaces
+              .filter(w => w.workspace_type === 'team')
+              .map((workspace) => (
+                <div
+                  key={workspace._id || workspace.id}
+                  onClick={() => navigate(`/workspaces/${workspace._id || workspace.id}`)}
+                  className="bg-white rounded-lg border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer overflow-hidden"
+                >
+                  <div
+                    className="h-32"
+                    style={{
+                      background: workspace.background_type === 'gradient'
+                        ? workspace.background_value
+                        : workspace.primary_color
+                    }}
+                  />
+                  <div className="p-4">
+                    <div className="flex items-center justify-between mb-1">
+                      <h3 className="font-semibold text-gray-900">{workspace.name}</h3>
+                      <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-700">
+                        Team
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-500 mb-3 line-clamp-2">{workspace.description}</p>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2 text-xs text-gray-500">
+                        {getViewIcon(workspace.default_view)}
+                        <span className="capitalize">{workspace.default_view}</span>
+                      </div>
+                      {workspace.memberRole && (
+                        <span className="text-xs text-gray-500 capitalize">{workspace.memberRole}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
           </div>
         )}
       </div>
@@ -279,18 +331,51 @@ const Workspaces: React.FC = () => {
                   placeholder="My Workspace"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Workspace Type</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => setWorkspaceType('personal')}
+                    className={`p-3 border-2 rounded-lg text-left transition-all ${
+                      workspaceType === 'personal'
+                        ? 'border-primary-500 bg-primary-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="font-medium text-gray-900">Personal</div>
+                    <div className="text-xs text-gray-500 mt-1">Just for you</div>
+                  </button>
+                  <button
+                    onClick={() => setWorkspaceType('team')}
+                    className={`p-3 border-2 rounded-lg text-left transition-all ${
+                      workspaceType === 'team'
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="font-medium text-gray-900">Team</div>
+                    <div className="text-xs text-gray-500 mt-1">Shared workspace</div>
+                  </button>
+                </div>
+                {workspaceType === 'team' && (
+                  <p className="text-xs text-gray-500 mt-2">
+                    You can invite team members after creating the workspace
+                  </p>
+                )}
+              </div>
               <div className="flex space-x-3">
                 <button
                   onClick={() => {
                     setShowCreateModal(false);
                     setWorkspaceName('');
+                    setWorkspaceType('personal');
                   }}
                   className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={() => createWorkspace(workspaceName, '')}
+                  onClick={() => createWorkspace(workspaceName, '', workspaceType)}
                   disabled={!workspaceName.trim() || creating}
                   className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
                 >

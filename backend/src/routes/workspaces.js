@@ -8,7 +8,7 @@ const geminiService = require('../services/geminiService');
 router.use(protect);
 
 // @route   GET /api/workspaces
-// @desc    Get all workspaces for user
+// @desc    Get all workspaces for user (personal + team workspaces where user is member)
 // @access  Private
 router.get('/', async (req, res) => {
   try {
@@ -19,7 +19,8 @@ router.get('/', async (req, res) => {
       return res.status(503).json({ message: 'Database not configured' });
     }
 
-    const { data: workspaces, error } = await supabase
+    // Get personal workspaces owned by user
+    const { data: personalWorkspaces, error: personalError } = await supabase
       .from('workspaces')
       .select('*')
       .eq('user_id', userId)
@@ -27,14 +28,41 @@ router.get('/', async (req, res) => {
       .order('is_default', { ascending: false })
       .order('created_at', { ascending: true });
 
-    if (error) {
-      console.error('Get workspaces error:', error);
+    if (personalError) {
+      console.error('Get personal workspaces error:', personalError);
       return res.status(500).json({ message: 'Error fetching workspaces' });
     }
 
-    res.json({
-      workspaces: (workspaces || []).map(w => ({ ...w, _id: w.id }))
-    });
+    // Get team workspaces where user is a member
+    const { data: teamWorkspaces, error: teamError } = await supabase
+      .from('workspaces')
+      .select(`
+        *,
+        workspace_members!inner(role, joined_at)
+      `)
+      .eq('workspace_members.user_id', userId)
+      .eq('workspace_type', 'team')
+      .eq('is_archived', false)
+      .order('created_at', { ascending: true });
+
+    if (teamError) {
+      console.error('Get team workspaces error:', teamError);
+      return res.status(500).json({ message: 'Error fetching team workspaces' });
+    }
+
+    // Combine and format workspaces
+    const allWorkspaces = [
+      ...(personalWorkspaces || []).map(w => ({ ...w, _id: w.id, isPersonal: true })),
+      ...(teamWorkspaces || []).map(w => ({
+        ...w,
+        _id: w.id,
+        isPersonal: false,
+        memberRole: w.workspace_members?.[0]?.role,
+        memberJoinedAt: w.workspace_members?.[0]?.joined_at
+      }))
+    ];
+
+    res.json({ workspaces: allWorkspaces });
   } catch (error) {
     console.error('Get workspaces error:', error);
     res.status(500).json({ message: 'Server error' });
@@ -58,11 +86,35 @@ router.get('/:id', async (req, res) => {
       .from('workspaces')
       .select('*')
       .eq('id', req.params.id)
-      .eq('user_id', userId)
       .single();
 
     if (workspaceError || !workspace) {
       return res.status(404).json({ message: 'Workspace not found' });
+    }
+
+    // Check access: owner for personal workspaces, or member for team workspaces
+    let hasAccess = false;
+    let memberRole = null;
+
+    if (workspace.workspace_type === 'personal') {
+      hasAccess = workspace.user_id === userId;
+    } else if (workspace.workspace_type === 'team') {
+      // Check if user is a member
+      const { data: membership } = await supabase
+        .from('workspace_members')
+        .select('role')
+        .eq('workspace_id', req.params.id)
+        .eq('user_id', userId)
+        .single();
+
+      if (membership) {
+        hasAccess = true;
+        memberRole = membership.role;
+      }
+    }
+
+    if (!hasAccess) {
+      return res.status(403).json({ message: 'Access denied' });
     }
 
     // Get board configs
@@ -76,6 +128,7 @@ router.get('/:id', async (req, res) => {
     res.json({
       ...workspace,
       _id: workspace.id,
+      memberRole,
       boardConfigs: (boardConfigs || []).map(b => ({ ...b, _id: b.id }))
     });
   } catch (error) {
@@ -106,7 +159,8 @@ router.post('/', async (req, res) => {
       primary_color,
       secondary_color,
       settings,
-      is_default
+      is_default,
+      workspace_type
     } = req.body;
 
     // If this is set as default, unset other defaults
@@ -117,27 +171,42 @@ router.post('/', async (req, res) => {
         .eq('user_id', userId);
     }
 
+    const workspaceData = {
+      user_id: userId,
+      name,
+      description,
+      default_view: default_view || 'kanban',
+      theme: theme || 'light',
+      background_type: background_type || 'color',
+      background_value: background_value || '#ffffff',
+      primary_color: primary_color || '#3b82f6',
+      secondary_color: secondary_color || '#8b5cf6',
+      settings: settings || {},
+      is_default: is_default || false,
+      workspace_type: workspace_type || 'personal'
+    };
+
     const { data: workspace, error } = await supabase
       .from('workspaces')
-      .insert([{
-        user_id: userId,
-        name,
-        description,
-        default_view: default_view || 'kanban',
-        theme: theme || 'light',
-        background_type: background_type || 'color',
-        background_value: background_value || '#ffffff',
-        primary_color: primary_color || '#3b82f6',
-        secondary_color: secondary_color || '#8b5cf6',
-        settings: settings || {},
-        is_default: is_default || false
-      }])
+      .insert([workspaceData])
       .select()
       .single();
 
     if (error) {
       console.error('Create workspace error:', error);
       return res.status(500).json({ message: 'Error creating workspace' });
+    }
+
+    // If team workspace, add creator as owner
+    if (workspace.workspace_type === 'team') {
+      await supabase
+        .from('workspace_members')
+        .insert([{
+          workspace_id: workspace.id,
+          user_id: userId,
+          role: 'owner',
+          invited_by: userId
+        }]);
     }
 
     res.status(201).json({ ...workspace, _id: workspace.id });
@@ -573,6 +642,286 @@ router.post('/generate-and-create', async (req, res) => {
     });
   } catch (error) {
     console.error('Generate and create workspace error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ============ TEAM WORKSPACE MEMBER MANAGEMENT ============
+
+// @route   GET /api/workspaces/:id/members
+// @desc    Get all members of a team workspace
+// @access  Private (must be workspace member)
+router.get('/:id/members', async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    const supabase = getSupabase();
+
+    if (!supabase) {
+      return res.status(503).json({ message: 'Database not configured' });
+    }
+
+    // Check if workspace exists and is a team workspace
+    const { data: workspace } = await supabase
+      .from('workspaces')
+      .select('workspace_type')
+      .eq('id', req.params.id)
+      .single();
+
+    if (!workspace || workspace.workspace_type !== 'team') {
+      return res.status(404).json({ message: 'Team workspace not found' });
+    }
+
+    // Check if user is a member
+    const { data: membership } = await supabase
+      .from('workspace_members')
+      .select('role')
+      .eq('workspace_id', req.params.id)
+      .eq('user_id', userId)
+      .single();
+
+    if (!membership) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    // Get all members with user details
+    const { data: members, error } = await supabase
+      .from('workspace_members')
+      .select(`
+        *,
+        user:users(id, email, name)
+      `)
+      .eq('workspace_id', req.params.id)
+      .order('role', { ascending: true })
+      .order('joined_at', { ascending: true });
+
+    if (error) {
+      console.error('Get members error:', error);
+      return res.status(500).json({ message: 'Error fetching members' });
+    }
+
+    res.json({
+      members: (members || []).map(m => ({
+        ...m,
+        _id: m.id,
+        user: m.user ? { ...m.user, _id: m.user.id } : null
+      }))
+    });
+  } catch (error) {
+    console.error('Get members error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @route   POST /api/workspaces/:id/members
+// @desc    Add a member to team workspace
+// @access  Private (must be owner or admin)
+router.post('/:id/members', async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    const supabase = getSupabase();
+
+    if (!supabase) {
+      return res.status(503).json({ message: 'Database not configured' });
+    }
+
+    const { user_email, role } = req.body;
+
+    if (!user_email) {
+      return res.status(400).json({ message: 'User email is required' });
+    }
+
+    // Check if requester is owner or admin
+    const { data: requesterMembership } = await supabase
+      .from('workspace_members')
+      .select('role')
+      .eq('workspace_id', req.params.id)
+      .eq('user_id', userId)
+      .single();
+
+    if (!requesterMembership || !['owner', 'admin'].includes(requesterMembership.role)) {
+      return res.status(403).json({ message: 'Only owners and admins can add members' });
+    }
+
+    // Find user by email
+    const { data: targetUser } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', user_email)
+      .single();
+
+    if (!targetUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Check if user is already a member
+    const { data: existingMember } = await supabase
+      .from('workspace_members')
+      .select('id')
+      .eq('workspace_id', req.params.id)
+      .eq('user_id', targetUser.id)
+      .single();
+
+    if (existingMember) {
+      return res.status(400).json({ message: 'User is already a member' });
+    }
+
+    // Add member
+    const { data: member, error } = await supabase
+      .from('workspace_members')
+      .insert([{
+        workspace_id: req.params.id,
+        user_id: targetUser.id,
+        role: role || 'member',
+        invited_by: userId
+      }])
+      .select(`
+        *,
+        user:users(id, email, name)
+      `)
+      .single();
+
+    if (error) {
+      console.error('Add member error:', error);
+      return res.status(500).json({ message: 'Error adding member' });
+    }
+
+    res.status(201).json({
+      ...member,
+      _id: member.id,
+      user: member.user ? { ...member.user, _id: member.user.id } : null
+    });
+  } catch (error) {
+    console.error('Add member error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @route   PUT /api/workspaces/:id/members/:memberId
+// @desc    Update member role
+// @access  Private (must be owner or admin)
+router.put('/:id/members/:memberId', async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    const supabase = getSupabase();
+
+    if (!supabase) {
+      return res.status(503).json({ message: 'Database not configured' });
+    }
+
+    const { role } = req.body;
+
+    if (!role || !['owner', 'admin', 'member'].includes(role)) {
+      return res.status(400).json({ message: 'Valid role is required' });
+    }
+
+    // Check if requester is owner or admin
+    const { data: requesterMembership } = await supabase
+      .from('workspace_members')
+      .select('role')
+      .eq('workspace_id', req.params.id)
+      .eq('user_id', userId)
+      .single();
+
+    if (!requesterMembership || !['owner', 'admin'].includes(requesterMembership.role)) {
+      return res.status(403).json({ message: 'Only owners and admins can update roles' });
+    }
+
+    // Update member role
+    const { data: member, error } = await supabase
+      .from('workspace_members')
+      .update({ role })
+      .eq('id', req.params.memberId)
+      .eq('workspace_id', req.params.id)
+      .select(`
+        *,
+        user:users(id, email, name)
+      `)
+      .single();
+
+    if (error) {
+      console.error('Update member role error:', error);
+      return res.status(500).json({ message: 'Error updating member role' });
+    }
+
+    res.json({
+      ...member,
+      _id: member.id,
+      user: member.user ? { ...member.user, _id: member.user.id } : null
+    });
+  } catch (error) {
+    console.error('Update member role error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @route   DELETE /api/workspaces/:id/members/:memberId
+// @desc    Remove member from team workspace
+// @access  Private (must be owner/admin, or removing self)
+router.delete('/:id/members/:memberId', async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    const supabase = getSupabase();
+
+    if (!supabase) {
+      return res.status(503).json({ message: 'Database not configured' });
+    }
+
+    // Get the member to be removed
+    const { data: targetMember } = await supabase
+      .from('workspace_members')
+      .select('user_id, role')
+      .eq('id', req.params.memberId)
+      .eq('workspace_id', req.params.id)
+      .single();
+
+    if (!targetMember) {
+      return res.status(404).json({ message: 'Member not found' });
+    }
+
+    // Check permissions: user can remove themselves, or owner/admin can remove others
+    const isRemovingSelf = targetMember.user_id === userId;
+
+    if (!isRemovingSelf) {
+      const { data: requesterMembership } = await supabase
+        .from('workspace_members')
+        .select('role')
+        .eq('workspace_id', req.params.id)
+        .eq('user_id', userId)
+        .single();
+
+      if (!requesterMembership || !['owner', 'admin'].includes(requesterMembership.role)) {
+        return res.status(403).json({ message: 'Only owners and admins can remove members' });
+      }
+    }
+
+    // Prevent removing the last owner
+    if (targetMember.role === 'owner') {
+      const { data: owners } = await supabase
+        .from('workspace_members')
+        .select('id')
+        .eq('workspace_id', req.params.id)
+        .eq('role', 'owner');
+
+      if (owners && owners.length <= 1) {
+        return res.status(400).json({ message: 'Cannot remove the last owner' });
+      }
+    }
+
+    // Remove member
+    const { error } = await supabase
+      .from('workspace_members')
+      .delete()
+      .eq('id', req.params.memberId)
+      .eq('workspace_id', req.params.id);
+
+    if (error) {
+      console.error('Remove member error:', error);
+      return res.status(500).json({ message: 'Error removing member' });
+    }
+
+    res.json({ message: 'Member removed successfully' });
+  } catch (error) {
+    console.error('Remove member error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

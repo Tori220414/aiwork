@@ -16,6 +16,7 @@ import Templates from '../components/compliance/Templates';
 import SavedTemplates from '../components/compliance/SavedTemplates';
 import ActiveChecklists from '../components/compliance/ActiveChecklists';
 import Reports from '../components/compliance/Reports';
+import WorkspaceMembers from '../components/WorkspaceMembers';
 import type { EventFormData } from '../components/EventModal';
 
 interface Workspace {
@@ -29,6 +30,8 @@ interface Workspace {
   background_value: string;
   primary_color: string;
   secondary_color: string;
+  workspace_type?: string;
+  memberRole?: string;
   boardConfigs?: BoardConfig[];
 }
 
@@ -212,6 +215,7 @@ const WorkspaceDetail: React.FC = () => {
       case 'saved': return <BookOpen className="w-4 h-4" />;
       case 'active': return <ListChecks className="w-4 h-4" />;
       case 'reports': return <BarChart3 className="w-4 h-4" />;
+      case 'members': return <Users className="w-4 h-4" />;
       default: return <Grid className="w-4 h-4" />;
     }
   };
@@ -570,9 +574,22 @@ const WorkspaceDetail: React.FC = () => {
               </button>
             </>
           )}
+          {workspace.workspace_type === 'team' && (
+            <button
+              onClick={() => setCurrentView('members')}
+              className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                currentView === 'members'
+                  ? 'bg-blue-50 text-blue-700'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              {getViewIcon('members')}
+              <span className="capitalize text-sm font-medium">Members</span>
+            </button>
+          )}
         </div>
 
-        {!isComplianceWorkspace() && (
+        {!isComplianceWorkspace() && currentView !== 'members' && (
           <button
             onClick={() => navigate('/tasks')}
             className="flex items-center space-x-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
@@ -636,6 +653,12 @@ const WorkspaceDetail: React.FC = () => {
         )}
         {currentView === 'reports' && isComplianceWorkspace() && (
           <Reports workspaceId={id || ''} />
+        )}
+        {currentView === 'members' && workspace.workspace_type === 'team' && (
+          <WorkspaceMembers
+            workspaceId={id || ''}
+            userRole={workspace.memberRole}
+          />
         )}
       </div>
 
