@@ -742,11 +742,11 @@ router.post('/:id/members', async (req, res) => {
       return res.status(403).json({ message: 'Only owners and admins can add members' });
     }
 
-    // Find user by email
+    // Find user by email (case-insensitive)
     const { data: targetUser } = await supabase
       .from('users')
-      .select('id')
-      .eq('email', user_email)
+      .select('id, email')
+      .ilike('email', user_email)
       .single();
 
     if (!targetUser) {
