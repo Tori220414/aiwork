@@ -83,7 +83,8 @@ const WorkspaceMembers: React.FC<WorkspaceMembersProps> = ({ workspaceId, userRo
   };
 
   const removeMember = async (memberId: string) => {
-    if (!window.confirm('Are you sure you want to remove this member?')) return;
+    // eslint-disable-next-line no-restricted-globals
+    if (!confirm('Are you sure you want to remove this member?')) return;
 
     try {
       await api.delete(`/workspaces/${workspaceId}/members/${memberId}`);

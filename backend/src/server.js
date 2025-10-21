@@ -55,16 +55,28 @@ const corsOptions = {
     const allowedOrigins = [
       'http://localhost:3000',
       'https://aiwork-sooty.vercel.app',
-      'https://aiwork-dyrfjnx1m-tori220414s-projects.vercel.app',
       process.env.CORS_ORIGIN
     ].filter(Boolean);
 
     // Allow requests with no origin (mobile apps, Postman, etc.)
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (!origin) {
       callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
+      return;
     }
+
+    // Check exact matches
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    // Allow all Vercel preview deployments for this project
+    if (origin.match(/^https:\/\/aiwork-[a-z0-9]+-tori220414s-projects\.vercel\.app$/)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
