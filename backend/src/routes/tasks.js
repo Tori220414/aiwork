@@ -11,7 +11,7 @@ router.use(protect);
 // @access  Private
 router.get('/', async (req, res) => {
   try {
-    const { status, priority, category, project, search, sortBy, limit, page } = req.query;
+    const { status, priority, category, project, search, sortBy, limit, page, workspace_id } = req.query;
     const userId = req.user._id || req.user.id;
     const supabase = getSupabase();
 
@@ -19,11 +19,39 @@ router.get('/', async (req, res) => {
       return res.status(503).json({ message: 'Database not configured' });
     }
 
-    // Build query
+    // Build query - if workspace_id provided, filter by workspace, otherwise by user
     let query = supabase
       .from('tasks')
-      .select('*')
-      .eq('user_id', userId);
+      .select('*, assigned_to_user:users!tasks_assigned_to_fkey(id, email, name)');
+
+    if (workspace_id) {
+      // For team workspaces: get all tasks in the workspace
+      // First verify user has access to this workspace
+      const { data: membership } = await supabase
+        .from('workspace_members')
+        .select('role')
+        .eq('workspace_id', workspace_id)
+        .eq('user_id', userId)
+        .single();
+
+      const { data: workspace } = await supabase
+        .from('workspaces')
+        .select('user_id, workspace_type')
+        .eq('id', workspace_id)
+        .single();
+
+      // Check if user owns workspace (personal) or is member (team)
+      const hasAccess = (workspace?.user_id === userId) || membership;
+
+      if (!hasAccess) {
+        return res.status(403).json({ message: 'Access denied to this workspace' });
+      }
+
+      query = query.eq('workspace_id', workspace_id);
+    } else {
+      // For personal tasks: get tasks owned by user
+      query = query.eq('user_id', userId);
+    }
 
     if (status) query = query.eq('status', status);
     if (priority) query = query.eq('priority', priority);
@@ -63,10 +91,17 @@ router.get('/', async (req, res) => {
     }
 
     // Get total count
-    const { count: total } = await supabase
+    let countQuery = supabase
       .from('tasks')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId);
+      .select('*', { count: 'exact', head: true });
+
+    if (workspace_id) {
+      countQuery = countQuery.eq('workspace_id', workspace_id);
+    } else {
+      countQuery = countQuery.eq('user_id', userId);
+    }
+
+    const { count: total } = await countQuery;
 
     res.json({
       tasks: (tasks || []).map(t => ({ ...t, _id: t.id })),
@@ -97,13 +132,36 @@ router.get('/:id', async (req, res) => {
 
     const { data: task, error } = await supabase
       .from('tasks')
-      .select('*')
+      .select('*, assigned_to_user:users!tasks_assigned_to_fkey(id, email, name)')
       .eq('id', req.params.id)
-      .eq('user_id', userId)
       .single();
 
     if (error || !task) {
       return res.status(404).json({ message: 'Task not found' });
+    }
+
+    // Check access: user owns task OR user is member of task's workspace
+    let hasAccess = task.user_id === userId;
+
+    if (!hasAccess && task.workspace_id) {
+      const { data: membership } = await supabase
+        .from('workspace_members')
+        .select('role')
+        .eq('workspace_id', task.workspace_id)
+        .eq('user_id', userId)
+        .single();
+
+      const { data: workspace } = await supabase
+        .from('workspaces')
+        .select('user_id')
+        .eq('id', task.workspace_id)
+        .single();
+
+      hasAccess = (workspace?.user_id === userId) || membership;
+    }
+
+    if (!hasAccess) {
+      return res.status(403).json({ message: 'Access denied' });
     }
 
     res.json({ ...task, _id: task.id });
@@ -169,11 +227,19 @@ router.post('/', async (req, res) => {
       taskData.project_id = taskData.projectId;
       delete taskData.projectId;
     }
+    if (taskData.assignedTo) {
+      taskData.assigned_to = taskData.assignedTo;
+      delete taskData.assignedTo;
+    }
+    if (taskData.workspaceId) {
+      taskData.workspace_id = taskData.workspaceId;
+      delete taskData.workspaceId;
+    }
 
     const { data: task, error } = await supabase
       .from('tasks')
       .insert([taskData])
-      .select()
+      .select('*, assigned_to_user:users!tasks_assigned_to_fkey(id, email, name)')
       .single();
 
     if (error) {
@@ -222,11 +288,34 @@ router.put('/:id', async (req, res) => {
       .from('tasks')
       .select('*')
       .eq('id', req.params.id)
-      .eq('user_id', userId)
       .single();
 
     if (!existingTask) {
       return res.status(404).json({ message: 'Task not found' });
+    }
+
+    // Check access: user owns task OR user is member of task's workspace
+    let hasAccess = existingTask.user_id === userId;
+
+    if (!hasAccess && existingTask.workspace_id) {
+      const { data: membership } = await supabase
+        .from('workspace_members')
+        .select('role')
+        .eq('workspace_id', existingTask.workspace_id)
+        .eq('user_id', userId)
+        .single();
+
+      const { data: workspace } = await supabase
+        .from('workspaces')
+        .select('user_id')
+        .eq('id', existingTask.workspace_id)
+        .single();
+
+      hasAccess = (workspace?.user_id === userId) || membership;
+    }
+
+    if (!hasAccess) {
+      return res.status(403).json({ message: 'Access denied' });
     }
 
     const wasCompleted = existingTask.status === 'completed';
@@ -236,6 +325,7 @@ router.put('/:id', async (req, res) => {
     delete updateData._id;
     delete updateData.id;
     delete updateData.user_id;
+    delete updateData.assigned_to_user; // Don't update the embedded user object
 
     // Convert camelCase to snake_case
     if (updateData.dueDate) {
@@ -246,6 +336,14 @@ router.put('/:id', async (req, res) => {
       updateData.completed_at = updateData.completedAt;
       delete updateData.completedAt;
     }
+    if (updateData.assignedTo) {
+      updateData.assigned_to = updateData.assignedTo;
+      delete updateData.assignedTo;
+    }
+    if (updateData.workspaceId) {
+      updateData.workspace_id = updateData.workspaceId;
+      delete updateData.workspaceId;
+    }
 
     if (isNowCompleted && !updateData.completed_at) {
       updateData.completed_at = new Date().toISOString();
@@ -255,8 +353,7 @@ router.put('/:id', async (req, res) => {
       .from('tasks')
       .update(updateData)
       .eq('id', req.params.id)
-      .eq('user_id', userId)
-      .select()
+      .select('*, assigned_to_user:users!tasks_assigned_to_fkey(id, email, name)')
       .single();
 
     if (error) {
@@ -302,11 +399,45 @@ router.delete('/:id', async (req, res) => {
       return res.status(503).json({ message: 'Database not configured' });
     }
 
+    // Get existing task to check access
+    const { data: existingTask } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('id', req.params.id)
+      .single();
+
+    if (!existingTask) {
+      return res.status(404).json({ message: 'Task not found' });
+    }
+
+    // Check access: user owns task OR user is member of task's workspace
+    let hasAccess = existingTask.user_id === userId;
+
+    if (!hasAccess && existingTask.workspace_id) {
+      const { data: membership } = await supabase
+        .from('workspace_members')
+        .select('role')
+        .eq('workspace_id', existingTask.workspace_id)
+        .eq('user_id', userId)
+        .single();
+
+      const { data: workspace } = await supabase
+        .from('workspaces')
+        .select('user_id')
+        .eq('id', existingTask.workspace_id)
+        .single();
+
+      hasAccess = (workspace?.user_id === userId) || membership;
+    }
+
+    if (!hasAccess) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
     const { error } = await supabase
       .from('tasks')
       .delete()
-      .eq('id', req.params.id)
-      .eq('user_id', userId);
+      .eq('id', req.params.id);
 
     if (error) {
       console.error('Delete task error:', error);
