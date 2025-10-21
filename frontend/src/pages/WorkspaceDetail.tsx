@@ -115,7 +115,9 @@ const WorkspaceDetail: React.FC = () => {
 
   const fetchTasks = async () => {
     try {
-      const response = await api.get('/tasks');
+      const response = await api.get('/tasks', {
+        params: { workspace_id: id }
+      });
       setTasks(response.data.tasks || []);
     } catch (error) {
       console.error('Error fetching tasks:', error);
@@ -280,7 +282,7 @@ const WorkspaceDetail: React.FC = () => {
                   {task.description && (
                     <p className="text-sm text-gray-500 line-clamp-2 mb-2">{task.description}</p>
                   )}
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className={`text-xs px-2 py-1 rounded-full ${
                       task.priority === 'urgent' ? 'bg-red-100 text-red-700' :
                       task.priority === 'high' ? 'bg-orange-100 text-orange-700' :
@@ -291,6 +293,12 @@ const WorkspaceDetail: React.FC = () => {
                     </span>
                     <span className="text-xs text-gray-500">{task.category}</span>
                   </div>
+                  {(task as any).assigned_to_user && (
+                    <div className="mt-2 flex items-center gap-1 text-xs text-gray-600">
+                      <Users className="w-3 h-3" />
+                      <span>{(task as any).assigned_to_user.name || (task as any).assigned_to_user.email}</span>
+                    </div>
+                  )}
                 </div>
               ))}
               {tasks.filter(t => t.status === column.id).length === 0 && (

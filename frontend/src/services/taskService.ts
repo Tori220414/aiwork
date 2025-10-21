@@ -37,6 +37,13 @@ export interface Task {
   completedAt?: Date | string;
   createdAt?: Date | string;
   updatedAt?: Date | string;
+  workspaceId?: string;
+  assignedTo?: string;
+  assigned_to_user?: {
+    id: string;
+    email: string;
+    name?: string;
+  };
 }
 
 export interface TaskFilters {
@@ -48,6 +55,7 @@ export interface TaskFilters {
   sortBy?: string;
   limit?: number;
   page?: number;
+  workspace_id?: string;
 }
 
 export interface TasksResponse {

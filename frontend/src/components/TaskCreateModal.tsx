@@ -1,16 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { X, Calendar, Clock, Tag, AlertCircle, Sparkles } from 'lucide-react';
+import { X, Calendar, Clock, Tag, AlertCircle, Sparkles, Users } from 'lucide-react';
 import { parseNaturalLanguageDate, commonDateSuggestions, extractDateFromTitle } from '../utils/dateParser';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
+
+interface Member {
+  id: string;
+  email: string;
+  name?: string;
+  role: string;
+}
 
 interface TaskCreateModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (taskData: any) => Promise<any>;
+  workspaceId?: string;
+  members?: Member[];
 }
 
-const TaskCreateModal: React.FC<TaskCreateModalProps> = ({ isOpen, onClose, onSubmit }) => {
+const TaskCreateModal: React.FC<TaskCreateModalProps> = ({ isOpen, onClose, onSubmit, workspaceId, members }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
@@ -18,6 +27,7 @@ const TaskCreateModal: React.FC<TaskCreateModalProps> = ({ isOpen, onClose, onSu
   const [dueDate, setDueDate] = useState('');
   const [estimatedTime, setEstimatedTime] = useState(30);
   const [tags, setTags] = useState('');
+  const [assignedTo, setAssignedTo] = useState('');
 
   const [naturalDateInput, setNaturalDateInput] = useState('');
   const [parsedDate, setParsedDate] = useState<Date | null>(null);
@@ -68,7 +78,9 @@ const TaskCreateModal: React.FC<TaskCreateModalProps> = ({ isOpen, onClose, onSu
         dueDate: dueDate || undefined,
         estimatedTime,
         tags: tags.split(',').map(t => t.trim()).filter(Boolean),
-        status: 'pending'
+        status: 'pending',
+        workspaceId: workspaceId || undefined,
+        assignedTo: assignedTo || undefined
       };
 
       await onSubmit(taskData);
@@ -81,6 +93,7 @@ const TaskCreateModal: React.FC<TaskCreateModalProps> = ({ isOpen, onClose, onSu
       setDueDate('');
       setEstimatedTime(30);
       setTags('');
+      setAssignedTo('');
       setNaturalDateInput('');
       setParsedDate(null);
 
@@ -248,6 +261,28 @@ const TaskCreateModal: React.FC<TaskCreateModalProps> = ({ isOpen, onClose, onSu
               </select>
             </div>
           </div>
+
+          {/* Assign To (only for team workspaces) */}
+          {members && members.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                <Users className="w-4 h-4 inline mr-1" />
+                Assign To
+              </label>
+              <select
+                value={assignedTo}
+                onChange={(e) => setAssignedTo(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">Unassigned</option>
+                {members.map((member) => (
+                  <option key={member.id} value={member.id}>
+                    {member.name || member.email} ({member.role})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Estimated Time */}
           <div>
