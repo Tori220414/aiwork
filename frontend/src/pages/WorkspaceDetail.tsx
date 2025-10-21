@@ -17,6 +17,7 @@ import SavedTemplates from '../components/compliance/SavedTemplates';
 import ActiveChecklists from '../components/compliance/ActiveChecklists';
 import Reports from '../components/compliance/Reports';
 import WorkspaceMembers from '../components/WorkspaceMembers';
+import TaskCreateModal from '../components/TaskCreateModal';
 import type { EventFormData } from '../components/EventModal';
 
 interface Workspace {
@@ -75,10 +76,12 @@ const WorkspaceDetail: React.FC = () => {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
+  const [members, setMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentView, setCurrentView] = useState<string>('kanban');
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [isEventDetailModalOpen, setIsEventDetailModalOpen] = useState(false);
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [selectedEvent, setSelectedEvent] = useState<Event | undefined>();
   const [selectedEventId, setSelectedEventId] = useState<string | undefined>();
@@ -88,6 +91,7 @@ const WorkspaceDetail: React.FC = () => {
       fetchWorkspaceData();
       fetchTasks();
       fetchEvents();
+      fetchMembers();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
@@ -132,6 +136,28 @@ const WorkspaceDetail: React.FC = () => {
       setEvents(response.data.events || []);
     } catch (error) {
       console.error('Error fetching events:', error);
+    }
+  };
+
+  const fetchMembers = async () => {
+    if (!workspace || workspace.workspace_type !== 'team') return;
+
+    try {
+      const response = await api.get(`/workspaces/${id}/members`);
+      setMembers(response.data.members || []);
+    } catch (error) {
+      console.error('Error fetching members:', error);
+    }
+  };
+
+  const handleCreateTask = async (taskData: any) => {
+    try {
+      await api.post('/tasks', taskData);
+      await fetchTasks();
+      toast.success('Task created successfully!');
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to create task');
+      throw error;
     }
   };
 
@@ -599,7 +625,7 @@ const WorkspaceDetail: React.FC = () => {
 
         {!isComplianceWorkspace() && currentView !== 'members' && (
           <button
-            onClick={() => navigate('/tasks')}
+            onClick={() => setIsTaskModalOpen(true)}
             className="flex items-center space-x-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
           >
             <Plus className="w-4 h-4" />
@@ -697,6 +723,20 @@ const WorkspaceDetail: React.FC = () => {
           onDelete={handleDeleteEvent}
         />
       )}
+
+      {/* Task Create Modal */}
+      <TaskCreateModal
+        isOpen={isTaskModalOpen}
+        onClose={() => setIsTaskModalOpen(false)}
+        onSubmit={handleCreateTask}
+        workspaceId={id}
+        members={workspace?.workspace_type === 'team' ? members.map(m => ({
+          id: m.user?.id || m.user?._id,
+          email: m.user?.email,
+          name: m.user?.name,
+          role: m.role
+        })) : undefined}
+      />
     </div>
   );
 };
