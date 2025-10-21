@@ -688,7 +688,7 @@ router.get('/:id/members', async (req, res) => {
       .from('workspace_members')
       .select(`
         *,
-        user:users(id, email, name)
+        user:users!workspace_members_user_id_fkey(id, email, name)
       `)
       .eq('workspace_id', req.params.id)
       .order('role', { ascending: true })
@@ -776,7 +776,7 @@ router.post('/:id/members', async (req, res) => {
       }])
       .select(`
         *,
-        user:users(id, email, name)
+        user:users!workspace_members_user_id_fkey(id, email, name)
       `)
       .single();
 
@@ -834,7 +834,7 @@ router.put('/:id/members/:memberId', async (req, res) => {
       .eq('workspace_id', req.params.id)
       .select(`
         *,
-        user:users(id, email, name)
+        user:users!workspace_members_user_id_fkey(id, email, name)
       `)
       .single();
 
