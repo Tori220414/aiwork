@@ -35,6 +35,9 @@ const complianceRoutes = require('./routes/compliance');
 // Initialize Express app
 const app = express();
 
+// Trust proxy - required for Railway/render/heroku deployments
+app.set('trust proxy', 1);
+
 // Initialize Supabase
 initializeSupabase();
 
