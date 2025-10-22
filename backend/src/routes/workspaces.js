@@ -200,14 +200,19 @@ router.post('/', async (req, res) => {
 
     // If team workspace, add creator as owner
     if (workspace.workspace_type === 'team') {
-      await supabase
+      const { error: memberError } = await supabase
         .from('team_workspace_members')
         .insert([{
           workspace_id: workspace.id,
           user_id: userId,
-          role: 'owner',
-          invited_by: userId
+          role: 'owner'
         }]);
+
+      if (memberError) {
+        console.error('Error adding workspace owner to team members:', memberError);
+        // Don't fail the request, but log the error
+        // The workspace was created successfully, we just need to fix the membership later
+      }
     }
 
     res.status(201).json({ ...workspace, _id: workspace.id });
@@ -780,8 +785,7 @@ router.post('/:id/members', async (req, res) => {
       .insert([{
         workspace_id: req.params.id,
         user_id: targetUser.id,
-        role: role || 'member',
-        invited_by: userId
+        role: role || 'member'
       }])
       .select(`
         *,
