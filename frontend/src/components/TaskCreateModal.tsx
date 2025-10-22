@@ -20,6 +20,7 @@ interface TaskCreateModalProps {
 }
 
 const TaskCreateModal: React.FC<TaskCreateModalProps> = ({ isOpen, onClose, onSubmit, workspaceId, members }) => {
+  console.log('TaskCreateModal rendered with members:', members);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');

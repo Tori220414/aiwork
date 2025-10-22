@@ -38,9 +38,9 @@ router.get('/', async (req, res) => {
       .from('workspaces')
       .select(`
         *,
-        workspace_members!inner(role, joined_at)
+        team_workspace_members!inner(role, joined_at)
       `)
-      .eq('workspace_members.user_id', userId)
+      .eq('team_workspace_members.user_id', userId)
       .eq('workspace_type', 'team')
       .eq('is_archived', false)
       .order('created_at', { ascending: true });
@@ -57,8 +57,8 @@ router.get('/', async (req, res) => {
         ...w,
         _id: w.id,
         isPersonal: false,
-        memberRole: w.workspace_members?.[0]?.role,
-        memberJoinedAt: w.workspace_members?.[0]?.joined_at
+        memberRole: w.team_workspace_members?.[0]?.role,
+        memberJoinedAt: w.team_workspace_members?.[0]?.joined_at
       }))
     ];
 
@@ -101,7 +101,7 @@ router.get('/:id', async (req, res) => {
     } else if (workspace.workspace_type === 'team') {
       // Check if user is a member
       const { data: membership } = await supabase
-        .from('workspace_members')
+        .from('team_workspace_members')
         .select('role')
         .eq('workspace_id', req.params.id)
         .eq('user_id', userId)
@@ -200,7 +200,7 @@ router.post('/', async (req, res) => {
     // If team workspace, add creator as owner
     if (workspace.workspace_type === 'team') {
       await supabase
-        .from('workspace_members')
+        .from('team_workspace_members')
         .insert([{
           workspace_id: workspace.id,
           user_id: userId,
@@ -671,24 +671,32 @@ router.get('/:id/members', async (req, res) => {
       return res.status(404).json({ message: 'Team workspace not found' });
     }
 
-    // Check if user is a member
+    // Check if user is a member (check owner OR team member)
+    const { data: workspaceOwner } = await supabase
+      .from('workspaces')
+      .select('user_id')
+      .eq('id', req.params.id)
+      .single();
+
+    const isOwner = workspaceOwner?.user_id === userId;
+
     const { data: membership } = await supabase
-      .from('workspace_members')
+      .from('team_workspace_members')
       .select('role')
       .eq('workspace_id', req.params.id)
       .eq('user_id', userId)
       .single();
 
-    if (!membership) {
+    if (!isOwner && !membership) {
       return res.status(403).json({ message: 'Access denied' });
     }
 
     // Get all members with user details
     const { data: members, error } = await supabase
-      .from('workspace_members')
+      .from('team_workspace_members')
       .select(`
         *,
-        user:users!workspace_members_user_id_fkey(id, email, name)
+        user:users!team_workspace_members_user_id_fkey(id, email, name)
       `)
       .eq('workspace_id', req.params.id)
       .order('role', { ascending: true })
@@ -732,7 +740,7 @@ router.post('/:id/members', async (req, res) => {
 
     // Check if requester is owner or admin
     const { data: requesterMembership } = await supabase
-      .from('workspace_members')
+      .from('team_workspace_members')
       .select('role')
       .eq('workspace_id', req.params.id)
       .eq('user_id', userId)
@@ -755,7 +763,7 @@ router.post('/:id/members', async (req, res) => {
 
     // Check if user is already a member
     const { data: existingMember } = await supabase
-      .from('workspace_members')
+      .from('team_workspace_members')
       .select('id')
       .eq('workspace_id', req.params.id)
       .eq('user_id', targetUser.id)
@@ -767,7 +775,7 @@ router.post('/:id/members', async (req, res) => {
 
     // Add member
     const { data: member, error } = await supabase
-      .from('workspace_members')
+      .from('team_workspace_members')
       .insert([{
         workspace_id: req.params.id,
         user_id: targetUser.id,
@@ -776,7 +784,7 @@ router.post('/:id/members', async (req, res) => {
       }])
       .select(`
         *,
-        user:users!workspace_members_user_id_fkey(id, email, name)
+        user:users!team_workspace_members_user_id_fkey(id, email, name)
       `)
       .single();
 
@@ -816,7 +824,7 @@ router.put('/:id/members/:memberId', async (req, res) => {
 
     // Check if requester is owner or admin
     const { data: requesterMembership } = await supabase
-      .from('workspace_members')
+      .from('team_workspace_members')
       .select('role')
       .eq('workspace_id', req.params.id)
       .eq('user_id', userId)
@@ -828,13 +836,13 @@ router.put('/:id/members/:memberId', async (req, res) => {
 
     // Update member role
     const { data: member, error } = await supabase
-      .from('workspace_members')
+      .from('team_workspace_members')
       .update({ role })
       .eq('id', req.params.memberId)
       .eq('workspace_id', req.params.id)
       .select(`
         *,
-        user:users!workspace_members_user_id_fkey(id, email, name)
+        user:users!team_workspace_members_user_id_fkey(id, email, name)
       `)
       .single();
 
@@ -868,7 +876,7 @@ router.delete('/:id/members/:memberId', async (req, res) => {
 
     // Get the member to be removed
     const { data: targetMember } = await supabase
-      .from('workspace_members')
+      .from('team_workspace_members')
       .select('user_id, role')
       .eq('id', req.params.memberId)
       .eq('workspace_id', req.params.id)
@@ -883,7 +891,7 @@ router.delete('/:id/members/:memberId', async (req, res) => {
 
     if (!isRemovingSelf) {
       const { data: requesterMembership } = await supabase
-        .from('workspace_members')
+        .from('team_workspace_members')
         .select('role')
         .eq('workspace_id', req.params.id)
         .eq('user_id', userId)
@@ -897,7 +905,7 @@ router.delete('/:id/members/:memberId', async (req, res) => {
     // Prevent removing the last owner
     if (targetMember.role === 'owner') {
       const { data: owners } = await supabase
-        .from('workspace_members')
+        .from('team_workspace_members')
         .select('id')
         .eq('workspace_id', req.params.id)
         .eq('role', 'owner');
@@ -909,7 +917,7 @@ router.delete('/:id/members/:memberId', async (req, res) => {
 
     // Remove member
     const { error } = await supabase
-      .from('workspace_members')
+      .from('team_workspace_members')
       .delete()
       .eq('id', req.params.memberId)
       .eq('workspace_id', req.params.id);

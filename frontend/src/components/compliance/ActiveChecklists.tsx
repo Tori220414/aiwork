@@ -43,6 +43,14 @@ interface Template {
   items: ChecklistItem[];
 }
 
+interface TeamMember {
+  id: string;
+  user_id: string;
+  email: string;
+  name?: string;
+  role: string;
+}
+
 interface ActiveChecklistsProps {
   workspaceId: string;
 }
@@ -50,6 +58,7 @@ interface ActiveChecklistsProps {
 const ActiveChecklists: React.FC<ActiveChecklistsProps> = ({ workspaceId }) => {
   const [instances, setInstances] = useState<ChecklistInstance[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [viewingInstance, setViewingInstance] = useState<ChecklistInstance | null>(null);
@@ -64,6 +73,7 @@ const ActiveChecklists: React.FC<ActiveChecklistsProps> = ({ workspaceId }) => {
   useEffect(() => {
     fetchInstances();
     fetchTemplates();
+    fetchTeamMembers();
   }, [workspaceId]);
 
   const fetchInstances = async () => {
@@ -89,22 +99,45 @@ const ActiveChecklists: React.FC<ActiveChecklistsProps> = ({ workspaceId }) => {
     }
   };
 
+  const fetchTeamMembers = async () => {
+    try {
+      const response = await api.get(`/workspaces/${workspaceId}/members`);
+      setTeamMembers(response.data.members || []);
+    } catch (error: any) {
+      console.error('Error fetching team members:', error);
+      // Silently fail - this is fine for personal workspaces
+    }
+  };
+
   const handleCreateInstance = async () => {
     if (!selectedTemplate) {
       toast.error('Please select a template');
       return;
     }
 
+    console.log('Creating instance with:', {
+      workspaceId,
+      selectedTemplate,
+      checklistName,
+      dueDate,
+      assignedTo
+    });
+
     try {
-      await api.post(`/workspaces/${workspaceId}/instances/from-template/${selectedTemplate}`, {
+      const response = await api.post(`/workspaces/${workspaceId}/instances/from-template/${selectedTemplate}`, {
         name: checklistName,
         dueDate: dueDate || null,
         assignedTo: assignedTo || null
       });
+      console.log('Instance created successfully:', response.data);
       toast.success('Active checklist created successfully');
       fetchInstances();
       resetCreateForm();
     } catch (error: any) {
+      console.error('Full error object:', error);
+      console.error('Error response data:', error.response?.data);
+      console.error('Error response status:', error.response?.status);
+      console.error('Error message:', error.message);
       toast.error(error.response?.data?.message || 'Failed to create checklist');
     }
   };
@@ -115,6 +148,11 @@ const ActiveChecklists: React.FC<ActiveChecklistsProps> = ({ workspaceId }) => {
     setChecklistName('');
     setDueDate('');
     setAssignedTo('');
+  };
+
+  const getAssignedUserName = (userId: string): string => {
+    const member = teamMembers.find(m => m.user_id === userId);
+    return member ? (member.name || member.email) : 'Unknown User';
   };
 
   const toggleItemComplete = async (instance: ChecklistInstance, itemId: string) => {
@@ -200,7 +238,7 @@ const ActiveChecklists: React.FC<ActiveChecklistsProps> = ({ workspaceId }) => {
       ['Industry', instance.industry],
       ['Status', instance.status.toUpperCase()],
       ['Due Date', instance.due_date ? new Date(instance.due_date).toLocaleDateString() : 'Not set'],
-      ['Assigned To', instance.assigned_to || 'Unassigned'],
+      ['Assigned To', instance.assigned_to ? getAssignedUserName(instance.assigned_to) : 'Unassigned'],
       [''],
       ['Item', 'Status', 'Required', 'Notes', 'Completed At', 'Completed By'],
       ...instance.items.map(item => [
@@ -376,7 +414,7 @@ const ActiveChecklists: React.FC<ActiveChecklistsProps> = ({ workspaceId }) => {
                   {instance.assigned_to && (
                     <div className="flex items-center gap-2 text-sm text-gray-600">
                       <Users className="w-4 h-4 text-gray-400" />
-                      Assigned to: {instance.assigned_to}
+                      Assigned to: {getAssignedUserName(instance.assigned_to)}
                     </div>
                   )}
                   <div className="text-sm text-gray-500">
@@ -475,13 +513,18 @@ const ActiveChecklists: React.FC<ActiveChecklistsProps> = ({ workspaceId }) => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Assign To
                 </label>
-                <input
-                  type="text"
+                <select
                   value={assignedTo}
                   onChange={(e) => setAssignedTo(e.target.value)}
-                  placeholder="Team member name or email"
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                />
+                >
+                  <option value="">Unassigned</option>
+                  {teamMembers.map((member) => (
+                    <option key={member.user_id} value={member.user_id}>
+                      {member.name || member.email}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="flex justify-end gap-3 pt-4">

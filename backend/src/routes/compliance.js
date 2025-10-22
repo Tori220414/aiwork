@@ -17,18 +17,39 @@ router.get('/:workspaceId/templates', async (req, res) => {
     const { workspaceId } = req.params;
     const supabase = getSupabase();
 
-    // Verify user has access to workspace
+    // Verify user has access to workspace (either as owner or team member)
     const { data: workspace, error: workspaceError } = await supabase
       .from('workspaces')
       .select('*')
       .eq('id', workspaceId)
-      .eq('user_id', req.user.id)
       .single();
 
     if (workspaceError || !workspace) {
       return res.status(404).json({
         success: false,
         message: 'Workspace not found'
+      });
+    }
+
+    // Check if user is owner or team member
+    const isOwner = workspace.user_id === req.user.id;
+    let isMember = false;
+
+    if (!isOwner && workspace.workspace_type === 'team') {
+      const { data: membership } = await supabase
+        .from('team_workspace_members')
+        .select('id')
+        .eq('workspace_id', workspaceId)
+        .eq('user_id', req.user.id)
+        .single();
+
+      isMember = !!membership;
+    }
+
+    if (!isOwner && !isMember) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied to this workspace'
       });
     }
 
@@ -415,18 +436,39 @@ router.get('/:workspaceId/instances', async (req, res) => {
     const { workspaceId } = req.params;
     const supabase = getSupabase();
 
-    // Verify user has access to workspace
+    // Verify user has access to workspace (either as owner or team member)
     const { data: workspace, error: workspaceError } = await supabase
       .from('workspaces')
       .select('*')
       .eq('id', workspaceId)
-      .eq('user_id', req.user.id)
       .single();
 
     if (workspaceError || !workspace) {
       return res.status(404).json({
         success: false,
         message: 'Workspace not found'
+      });
+    }
+
+    // Check if user is owner or team member
+    const isOwner = workspace.user_id === req.user.id;
+    let isMember = false;
+
+    if (!isOwner && workspace.workspace_type === 'team') {
+      const { data: membership } = await supabase
+        .from('team_workspace_members')
+        .select('id')
+        .eq('workspace_id', workspaceId)
+        .eq('user_id', req.user.id)
+        .single();
+
+      isMember = !!membership;
+    }
+
+    if (!isOwner && !isMember) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied to this workspace'
       });
     }
 
@@ -465,6 +507,42 @@ router.post('/:workspaceId/instances/from-template/:templateId', async (req, res
     const { name, dueDate, assignedTo } = req.body;
     const supabase = getSupabase();
 
+    // Verify user has access to workspace (either as owner or team member)
+    const { data: workspace, error: workspaceError } = await supabase
+      .from('workspaces')
+      .select('*')
+      .eq('id', workspaceId)
+      .single();
+
+    if (workspaceError || !workspace) {
+      return res.status(404).json({
+        success: false,
+        message: 'Workspace not found'
+      });
+    }
+
+    // Check if user is owner or team member
+    const isOwner = workspace.user_id === req.user.id;
+    let isMember = false;
+
+    if (!isOwner && workspace.workspace_type === 'team') {
+      const { data: membership } = await supabase
+        .from('team_workspace_members')
+        .select('id')
+        .eq('workspace_id', workspaceId)
+        .eq('user_id', req.user.id)
+        .single();
+
+      isMember = !!membership;
+    }
+
+    if (!isOwner && !isMember) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied to this workspace'
+      });
+    }
+
     // Get template
     const { data: template, error: templateError } = await supabase
       .from('compliance_templates')
@@ -478,6 +556,30 @@ router.post('/:workspaceId/instances/from-template/:templateId', async (req, res
         success: false,
         message: 'Template not found'
       });
+    }
+
+    // Validate assignedTo if provided - must be a workspace member
+    if (assignedTo) {
+      if (workspace.workspace_type === 'team') {
+        const { data: assignedMember } = await supabase
+          .from('team_workspace_members')
+          .select('user_id')
+          .eq('workspace_id', workspaceId)
+          .eq('user_id', assignedTo)
+          .single();
+
+        if (!assignedMember) {
+          return res.status(400).json({
+            success: false,
+            message: 'Assigned user is not a member of this workspace'
+          });
+        }
+      } else if (assignedTo !== workspace.user_id) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cannot assign to user in personal workspace'
+        });
+      }
     }
 
     // Create instance from template

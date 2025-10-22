@@ -28,7 +28,7 @@ router.get('/', async (req, res) => {
       // For team workspaces: get all tasks in the workspace
       // First verify user has access to this workspace
       const { data: membership } = await supabase
-        .from('workspace_members')
+        .from('team_workspace_members')
         .select('role')
         .eq('workspace_id', workspace_id)
         .eq('user_id', userId)
@@ -145,7 +145,7 @@ router.get('/:id', async (req, res) => {
 
     if (!hasAccess && task.workspace_id) {
       const { data: membership } = await supabase
-        .from('workspace_members')
+        .from('team_workspace_members')
         .select('role')
         .eq('workspace_id', task.workspace_id)
         .eq('user_id', userId)
@@ -236,6 +236,36 @@ router.post('/', async (req, res) => {
       delete taskData.workspaceId;
     }
 
+    // Validate assignedTo if provided - must be a workspace member
+    if (taskData.assigned_to && taskData.workspace_id) {
+      const { data: workspace } = await supabase
+        .from('workspaces')
+        .select('workspace_type, user_id')
+        .eq('id', taskData.workspace_id)
+        .single();
+
+      if (workspace) {
+        if (workspace.workspace_type === 'team') {
+          const { data: assignedMember } = await supabase
+            .from('team_workspace_members')
+            .select('user_id')
+            .eq('workspace_id', taskData.workspace_id)
+            .eq('user_id', taskData.assigned_to)
+            .single();
+
+          if (!assignedMember) {
+            return res.status(400).json({
+              message: 'Assigned user is not a member of this workspace'
+            });
+          }
+        } else if (taskData.assigned_to !== workspace.user_id) {
+          return res.status(400).json({
+            message: 'Cannot assign to user in personal workspace'
+          });
+        }
+      }
+    }
+
     const { data: task, error } = await supabase
       .from('tasks')
       .insert([taskData])
@@ -299,7 +329,7 @@ router.put('/:id', async (req, res) => {
 
     if (!hasAccess && existingTask.workspace_id) {
       const { data: membership } = await supabase
-        .from('workspace_members')
+        .from('team_workspace_members')
         .select('role')
         .eq('workspace_id', existingTask.workspace_id)
         .eq('user_id', userId)
@@ -343,6 +373,36 @@ router.put('/:id', async (req, res) => {
     if (updateData.workspaceId) {
       updateData.workspace_id = updateData.workspaceId;
       delete updateData.workspaceId;
+    }
+
+    // Validate assignedTo if being changed - must be a workspace member
+    if (updateData.assigned_to && existingTask.workspace_id) {
+      const { data: workspace } = await supabase
+        .from('workspaces')
+        .select('workspace_type, user_id')
+        .eq('id', existingTask.workspace_id)
+        .single();
+
+      if (workspace) {
+        if (workspace.workspace_type === 'team') {
+          const { data: assignedMember } = await supabase
+            .from('team_workspace_members')
+            .select('user_id')
+            .eq('workspace_id', existingTask.workspace_id)
+            .eq('user_id', updateData.assigned_to)
+            .single();
+
+          if (!assignedMember) {
+            return res.status(400).json({
+              message: 'Assigned user is not a member of this workspace'
+            });
+          }
+        } else if (updateData.assigned_to !== workspace.user_id) {
+          return res.status(400).json({
+            message: 'Cannot assign to user in personal workspace'
+          });
+        }
+      }
     }
 
     if (isNowCompleted && !updateData.completed_at) {
@@ -415,7 +475,7 @@ router.delete('/:id', async (req, res) => {
 
     if (!hasAccess && existingTask.workspace_id) {
       const { data: membership } = await supabase
-        .from('workspace_members')
+        .from('team_workspace_members')
         .select('role')
         .eq('workspace_id', existingTask.workspace_id)
         .eq('user_id', userId)

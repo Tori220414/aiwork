@@ -13,6 +13,10 @@ interface Workspace {
   background_value: string;
   primary_color: string;
   secondary_color: string;
+  workspace_type?: string;
+  isPersonal?: boolean;
+  memberRole?: string;
+  memberJoinedAt?: string;
 }
 
 interface WorkspaceSwitcherProps {

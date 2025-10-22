@@ -96,6 +96,14 @@ const WorkspaceDetail: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  // Refetch members when workspace type changes
+  useEffect(() => {
+    if (workspace?.workspace_type === 'team') {
+      fetchMembers();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspace?.workspace_type]);
+
   const fetchWorkspaceData = async () => {
     try {
       const response = await api.get(`/workspaces/${id}`);
@@ -140,13 +148,13 @@ const WorkspaceDetail: React.FC = () => {
   };
 
   const fetchMembers = async () => {
-    if (!workspace || workspace.workspace_type !== 'team') return;
-
     try {
       const response = await api.get(`/workspaces/${id}/members`);
       setMembers(response.data.members || []);
     } catch (error) {
       console.error('Error fetching members:', error);
+      // Silently fail - this is expected for personal workspaces
+      setMembers([]);
     }
   };
 
@@ -730,12 +738,18 @@ const WorkspaceDetail: React.FC = () => {
         onClose={() => setIsTaskModalOpen(false)}
         onSubmit={handleCreateTask}
         workspaceId={id}
-        members={workspace?.workspace_type === 'team' ? members.map(m => ({
-          id: m.user?.id || m.user?._id,
-          email: m.user?.email,
-          name: m.user?.name,
-          role: m.role
-        })) : undefined}
+        members={(() => {
+          const mappedMembers = workspace?.workspace_type === 'team' ? members.map(m => ({
+            id: m.user?.id || m.user?._id,
+            email: m.user?.email,
+            name: m.user?.name,
+            role: m.role
+          })) : undefined;
+          console.log('Workspace type:', workspace?.workspace_type);
+          console.log('Members state:', members);
+          console.log('Mapped members for modal:', mappedMembers);
+          return mappedMembers;
+        })()}
       />
     </div>
   );
