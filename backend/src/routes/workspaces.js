@@ -96,10 +96,11 @@ router.get('/:id', async (req, res) => {
     let hasAccess = false;
     let memberRole = null;
 
-    if (workspace.workspace_type === 'personal') {
-      hasAccess = workspace.user_id === userId;
+    // First check if user owns the workspace (covers personal workspaces and NULL workspace_type)
+    if (workspace.user_id === userId) {
+      hasAccess = true;
     } else if (workspace.workspace_type === 'team') {
-      // Check if user is a member
+      // For team workspaces, check if user is a member
       const { data: membership } = await supabase
         .from('team_workspace_members')
         .select('role')
