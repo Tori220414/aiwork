@@ -1,52 +1,29 @@
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
 /**
  * Email Service for sending notifications
- * Uses nodemailer with Gmail SMTP
+ * Uses Resend API (HTTP-based, works on Railway)
  */
 
-// Create reusable transporter
-let transporter = null;
+// Create Resend client
+let resendClient = null;
 
-function createTransporter() {
-  if (transporter) {
-    return transporter;
+function getResendClient() {
+  if (resendClient) {
+    return resendClient;
   }
 
-  const emailConfig = {
-    host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.EMAIL_PORT) || 465,
-    secure: true, // true for 465, false for 587
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-  };
+  const apiKey = process.env.RESEND_API_KEY;
 
-  // Only create transporter if email credentials are configured
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS ||
-      process.env.EMAIL_USER === 'your-email@gmail.com') {
-    console.warn('Email service not configured. Set EMAIL_USER and EMAIL_PASS in .env');
+  if (!apiKey || apiKey === 'your-resend-api-key') {
+    console.warn('⚠️  Resend API key not configured. Set RESEND_API_KEY in environment variables.');
     return null;
   }
 
-  transporter = nodemailer.createTransport({
-    ...emailConfig,
-    connectionTimeout: 10000, // 10 seconds
-    greetingTimeout: 10000,
-    socketTimeout: 10000,
-  });
+  resendClient = new Resend(apiKey);
+  console.log('✅ Resend email service initialized');
 
-  // Verify connection configuration (async)
-  transporter.verify()
-    .then(() => {
-      console.log('✅ Email service is ready to send messages');
-    })
-    .catch((error) => {
-      console.error('❌ Email service verification failed:', error.message);
-    });
-
-  return transporter;
+  return resendClient;
 }
 
 /**
@@ -62,16 +39,14 @@ function createTransporter() {
  * @param {string} options.taskUrl - URL to view the task
  */
 async function sendTaskAssignmentEmail(options) {
-  console.log('sendTaskAssignmentEmail called with recipient:', options.to);
+  console.log('📧 sendTaskAssignmentEmail called with recipient:', options.to);
 
-  const transport = createTransporter();
+  const resend = getResendClient();
 
-  if (!transport) {
-    console.log('Email service not configured, skipping email notification');
+  if (!resend) {
+    console.log('⚠️  Email service not configured, skipping email notification');
     return { sent: false, error: 'Email service not configured' };
   }
-
-  console.log('Email transport created, preparing to send...');
 
   const {
     to,
@@ -179,34 +154,26 @@ ${taskUrl ? `View task: ${taskUrl}` : ''}
 This is an automated notification from AI Work.
   `.trim();
 
-  const mailOptions = {
-    from: `"AI Work" <${process.env.EMAIL_USER}>`,
-    to: to,
-    subject: `New Task: ${taskTitle}`,
-    text: textContent,
-    html: htmlContent,
-  };
-
   try {
-    console.log('Calling sendMail with 30 second timeout...');
+    console.log('📤 Sending email via Resend API...');
 
-    // Add a timeout wrapper
-    const sendPromise = transport.sendMail(mailOptions);
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Email send timeout after 30 seconds')), 30000)
-    );
+    const { data, error } = await resend.emails.send({
+      from: 'AI Work <onboarding@resend.dev>', // Use Resend's test domain
+      to: [to],
+      subject: `New Task: ${taskTitle}`,
+      text: textContent,
+      html: htmlContent,
+    });
 
-    const info = await Promise.race([sendPromise, timeoutPromise]);
-    console.log('✅ Task assignment email sent successfully! MessageId:', info.messageId);
-    return { sent: true, messageId: info.messageId };
+    if (error) {
+      console.error('❌ Resend API error:', error);
+      return { sent: false, error: error.message };
+    }
+
+    console.log('✅ Task assignment email sent successfully! Email ID:', data.id);
+    return { sent: true, messageId: data.id };
   } catch (error) {
     console.error('❌ Error sending task assignment email:', error.message);
-    console.error('Error details:', {
-      code: error.code,
-      command: error.command,
-      response: error.response,
-      stack: error.stack
-    });
     return { sent: false, error: error.message };
   }
 }
@@ -215,27 +182,31 @@ This is an automated notification from AI Work.
  * Send a generic notification email
  */
 async function sendEmail({ to, subject, text, html }) {
-  const transport = createTransporter();
+  const resend = getResendClient();
 
-  if (!transport) {
-    console.log('Email service not configured, skipping email');
+  if (!resend) {
+    console.log('⚠️  Email service not configured, skipping email');
     return { sent: false, error: 'Email service not configured' };
   }
 
-  const mailOptions = {
-    from: `"AI Work" <${process.env.EMAIL_USER}>`,
-    to,
-    subject,
-    text,
-    html: html || text,
-  };
-
   try {
-    const info = await transport.sendMail(mailOptions);
-    console.log('Email sent:', info.messageId);
-    return { sent: true, messageId: info.messageId };
+    const { data, error } = await resend.emails.send({
+      from: 'AI Work <onboarding@resend.dev>',
+      to: [to],
+      subject,
+      text,
+      html: html || text,
+    });
+
+    if (error) {
+      console.error('❌ Resend API error:', error);
+      return { sent: false, error: error.message };
+    }
+
+    console.log('✅ Email sent! Email ID:', data.id);
+    return { sent: true, messageId: data.id };
   } catch (error) {
-    console.error('Error sending email:', error);
+    console.error('❌ Error sending email:', error.message);
     return { sent: false, error: error.message };
   }
 }
