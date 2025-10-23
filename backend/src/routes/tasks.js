@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { protect } = require('../middleware/auth-supabase');
 const { getSupabase } = require('../config/supabase');
+const { sendTaskAssignmentNotification } = require('../services/notificationService');
 
 // All routes are protected
 router.use(protect);
@@ -294,6 +295,25 @@ router.post('/', async (req, res) => {
         .eq('id', userId);
     }
 
+    // Send notification if task is assigned to someone
+    if (task.assigned_to && task.assigned_to !== userId && task.workspace_id) {
+      const { data: workspace } = await supabase
+        .from('workspaces')
+        .select('id, name')
+        .eq('id', task.workspace_id)
+        .single();
+
+      if (workspace) {
+        // Send notification asynchronously (don't wait for it)
+        sendTaskAssignmentNotification({
+          assignedToUserId: task.assigned_to,
+          assignedByUserId: userId,
+          task: task,
+          workspace: workspace
+        }).catch(err => console.error('Error sending task assignment notification:', err));
+      }
+    }
+
     res.status(201).json({ ...task, _id: task.id });
   } catch (error) {
     console.error('Create task error:', error);
@@ -437,6 +457,28 @@ router.put('/:id', async (req, res) => {
           .from('users')
           .update({ stats })
           .eq('id', userId);
+      }
+    }
+
+    // Send notification if task assignment changed
+    if (updateData.assigned_to &&
+        updateData.assigned_to !== existingTask.assigned_to &&
+        updateData.assigned_to !== userId &&
+        existingTask.workspace_id) {
+      const { data: workspace } = await supabase
+        .from('workspaces')
+        .select('id, name')
+        .eq('id', existingTask.workspace_id)
+        .single();
+
+      if (workspace) {
+        // Send notification asynchronously (don't wait for it)
+        sendTaskAssignmentNotification({
+          assignedToUserId: updateData.assigned_to,
+          assignedByUserId: userId,
+          task: task,
+          workspace: workspace
+        }).catch(err => console.error('Error sending task assignment notification:', err));
       }
     }
 
