@@ -57,12 +57,16 @@ function createTransporter() {
  * @param {string} options.taskUrl - URL to view the task
  */
 async function sendTaskAssignmentEmail(options) {
+  console.log('sendTaskAssignmentEmail called with recipient:', options.to);
+
   const transport = createTransporter();
 
   if (!transport) {
     console.log('Email service not configured, skipping email notification');
     return { sent: false, error: 'Email service not configured' };
   }
+
+  console.log('Email transport created, preparing to send...');
 
   const {
     to,
@@ -179,11 +183,17 @@ This is an automated notification from AI Work.
   };
 
   try {
+    console.log('Calling sendMail...');
     const info = await transport.sendMail(mailOptions);
-    console.log('Task assignment email sent:', info.messageId);
+    console.log('Task assignment email sent successfully! MessageId:', info.messageId);
     return { sent: true, messageId: info.messageId };
   } catch (error) {
     console.error('Error sending task assignment email:', error);
+    console.error('Error details:', {
+      code: error.code,
+      command: error.command,
+      response: error.response
+    });
     return { sent: false, error: error.message };
   }
 }
