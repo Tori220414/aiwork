@@ -1,4 +1,4 @@
-const { supabase } = require('../config/supabase');
+const { getSupabase } = require('../config/supabase');
 const { sendTaskAssignmentEmail } = require('./emailService');
 
 /**
@@ -12,6 +12,12 @@ const { sendTaskAssignmentEmail } = require('./emailService');
  * @returns {Promise<Object>} Created notification
  */
 async function createNotification(notificationData) {
+  const supabase = getSupabase();
+
+  if (!supabase) {
+    throw new Error('Database not configured');
+  }
+
   const {
     user_id,
     type,
@@ -54,6 +60,24 @@ async function createNotification(notificationData) {
  * @returns {Promise<Object>} User notification preferences
  */
 async function getUserNotificationPreferences(userId) {
+  const supabase = getSupabase();
+
+  if (!supabase) {
+    console.error('Database not configured');
+    // Return default preferences
+    return {
+      email_task_assigned: true,
+      email_task_updated: true,
+      email_task_completed: false,
+      email_task_comment: true,
+      inapp_task_assigned: true,
+      inapp_task_updated: true,
+      inapp_task_completed: true,
+      inapp_task_comment: true,
+      email_digest_frequency: 'instant'
+    };
+  }
+
   const { data: preferences, error } = await supabase
     .from('user_notification_preferences')
     .select('*')
@@ -88,6 +112,13 @@ async function getUserNotificationPreferences(userId) {
  * @param {Object} options.workspace - Workspace object
  */
 async function sendTaskAssignmentNotification(options) {
+  const supabase = getSupabase();
+
+  if (!supabase) {
+    console.error('Database not configured for notifications');
+    return;
+  }
+
   const { assignedToUserId, assignedByUserId, task, workspace } = options;
 
   try {
@@ -198,6 +229,12 @@ async function sendTaskAssignmentNotification(options) {
  * @param {string} userId - User ID (for security)
  */
 async function markNotificationAsRead(notificationId, userId) {
+  const supabase = getSupabase();
+
+  if (!supabase) {
+    throw new Error('Database not configured');
+  }
+
   const { data, error } = await supabase
     .from('notifications')
     .update({
@@ -223,6 +260,12 @@ async function markNotificationAsRead(notificationId, userId) {
  * @param {Object} options - Query options
  */
 async function getUserNotifications(userId, options = {}) {
+  const supabase = getSupabase();
+
+  if (!supabase) {
+    throw new Error('Database not configured');
+  }
+
   const {
     limit = 50,
     offset = 0,
@@ -255,6 +298,13 @@ async function getUserNotifications(userId, options = {}) {
  * @param {string} userId - User ID
  */
 async function getUnreadNotificationCount(userId) {
+  const supabase = getSupabase();
+
+  if (!supabase) {
+    console.error('Database not configured');
+    return 0;
+  }
+
   const { count, error } = await supabase
     .from('notifications')
     .select('*', { count: 'exact', head: true })
