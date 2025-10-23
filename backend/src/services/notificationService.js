@@ -148,6 +148,7 @@ async function sendTaskAssignmentNotification(options) {
 
     // Get user notification preferences
     const preferences = await getUserNotificationPreferences(assignedToUserId);
+    console.log('User notification preferences:', preferences);
 
     // Create in-app notification if user has it enabled
     if (preferences.inapp_task_assigned) {
@@ -170,7 +171,14 @@ async function sendTaskAssignmentNotification(options) {
     }
 
     // Send email notification if user has it enabled
+    console.log('Checking email preferences:', {
+      email_task_assigned: preferences.email_task_assigned,
+      email_digest_frequency: preferences.email_digest_frequency,
+      willSendEmail: preferences.email_task_assigned && preferences.email_digest_frequency === 'instant'
+    });
+
     if (preferences.email_task_assigned && preferences.email_digest_frequency === 'instant') {
+      console.log('Attempting to send email to:', assignedUser.email);
       const emailResult = await sendTaskAssignmentEmail({
         to: assignedUser.email,
         assignedByName: assignedByUser.name || assignedByUser.email,
