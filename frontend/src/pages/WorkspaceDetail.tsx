@@ -633,7 +633,13 @@ const WorkspaceDetail: React.FC = () => {
 
         {!isComplianceWorkspace() && currentView !== 'members' && (
           <button
-            onClick={() => setIsTaskModalOpen(true)}
+            onClick={() => {
+              // Refresh members before opening modal to get latest team members
+              if (workspace?.workspace_type === 'team') {
+                fetchMembers();
+              }
+              setIsTaskModalOpen(true);
+            }}
             className="flex items-center space-x-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
           >
             <Plus className="w-4 h-4" />
