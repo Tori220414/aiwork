@@ -30,16 +30,21 @@ function createTransporter() {
     return null;
   }
 
-  transporter = nodemailer.createTransport(emailConfig);
-
-  // Verify connection configuration
-  transporter.verify((error, success) => {
-    if (error) {
-      console.error('Email service error:', error);
-    } else {
-      console.log('Email service is ready to send messages');
-    }
+  transporter = nodemailer.createTransport({
+    ...emailConfig,
+    connectionTimeout: 10000, // 10 seconds
+    greetingTimeout: 10000,
+    socketTimeout: 10000,
   });
+
+  // Verify connection configuration (async)
+  transporter.verify()
+    .then(() => {
+      console.log('✅ Email service is ready to send messages');
+    })
+    .catch((error) => {
+      console.error('❌ Email service verification failed:', error.message);
+    });
 
   return transporter;
 }
@@ -183,16 +188,24 @@ This is an automated notification from AI Work.
   };
 
   try {
-    console.log('Calling sendMail...');
-    const info = await transport.sendMail(mailOptions);
-    console.log('Task assignment email sent successfully! MessageId:', info.messageId);
+    console.log('Calling sendMail with 30 second timeout...');
+
+    // Add a timeout wrapper
+    const sendPromise = transport.sendMail(mailOptions);
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Email send timeout after 30 seconds')), 30000)
+    );
+
+    const info = await Promise.race([sendPromise, timeoutPromise]);
+    console.log('✅ Task assignment email sent successfully! MessageId:', info.messageId);
     return { sent: true, messageId: info.messageId };
   } catch (error) {
-    console.error('Error sending task assignment email:', error);
+    console.error('❌ Error sending task assignment email:', error.message);
     console.error('Error details:', {
       code: error.code,
       command: error.command,
-      response: error.response
+      response: error.response,
+      stack: error.stack
     });
     return { sent: false, error: error.message };
   }
