@@ -6,13 +6,11 @@ const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const { initializeSupabase } = require('./config/supabase');
-const { initializeGemini } = require('./config/gemini');
 const { initializeStripe } = require('./config/stripe');
 
 // Import routes
 const authRoutes = require('./routes/auth-supabase');
 const taskRoutes = require('./routes/tasks');
-const aiRoutes = require('./routes/ai');
 const dashboardRoutes = require('./routes/dashboard');
 const workspaceRoutes = require('./routes/workspaces');
 const eventRoutes = require('./routes/events');
@@ -40,9 +38,6 @@ app.set('trust proxy', 1);
 
 // Initialize Supabase
 initializeSupabase();
-
-// Initialize Gemini AI
-initializeGemini();
 
 // Initialize Stripe
 initializeStripe();
@@ -113,10 +108,9 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     environment: process.env.NODE_ENV,
-    version: '1.0.1',
+    version: '1.0.2',
     services: {
-      supabase: !!process.env.SUPABASE_URL,
-      gemini: !!process.env.GEMINI_API_KEY
+      supabase: !!process.env.SUPABASE_URL
     }
   });
 });
@@ -128,7 +122,6 @@ app.get('/api/health', (req, res) => res.status(200).json({ status: 'OK' }));
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/tasks', taskRoutes);
-app.use('/api/ai', aiRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/workspaces', workspaceRoutes);
 app.use('/api/events', eventRoutes);
@@ -151,13 +144,12 @@ app.use('/api/workspaces', complianceRoutes);
 // Root route
 app.get('/', (req, res) => {
   res.json({
-    message: 'AI Task Master API',
-    version: '1.0.0',
+    message: 'Aurora Tasks API',
+    version: '1.0.2',
     documentation: '/api/docs',
     endpoints: {
       auth: '/api/auth',
       tasks: '/api/tasks',
-      ai: '/api/ai',
       dashboard: '/api/dashboard',
       workspaces: '/api/workspaces',
       events: '/api/events',

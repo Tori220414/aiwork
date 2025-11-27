@@ -7,8 +7,6 @@ import {
   CheckSquare,
   Brain,
   CalendarDays,
-  Bot,
-  MessageCircle,
   Layers,
   LogOut,
   Menu,
@@ -29,8 +27,6 @@ const Layout: React.FC = () => {
     { name: 'Brain Dump', href: '/brain-dump', icon: Brain },
     { name: 'Daily Planner', href: '/daily-planner', icon: CalendarDays },
     { name: 'Weekly Planner', href: '/weekly-planner', icon: CalendarDays },
-    { name: 'AI Assistant', href: '/ai-assistant', icon: Bot },
-    { name: 'AI Chat', href: '/ai-chat', icon: MessageCircle },
     { name: 'Workspaces', href: '/workspaces', icon: Layers },
     { name: 'Calendar', href: '/calendar', icon: CalendarDays },
     { name: 'Profile', href: '/profile', icon: Settings },
@@ -138,11 +134,6 @@ const Layout: React.FC = () => {
               </div>
 
               <div className="flex items-center space-x-4">
-                <div className="hidden sm:block">
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
-                    ✨ AI Powered
-                  </span>
-                </div>
               </div>
             </div>
           </div>

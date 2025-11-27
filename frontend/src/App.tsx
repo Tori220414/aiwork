@@ -9,7 +9,6 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Tasks from './pages/Tasks';
-import AIAssistant from './pages/AIAssistant';
 import Workspaces from './pages/Workspaces';
 import WorkspaceDetail from './pages/WorkspaceDetail';
 import Billing from './pages/Billing';
@@ -24,7 +23,6 @@ import OutlookCallback from './pages/OutlookCallback';
 import GoogleCallback from './pages/GoogleCallback';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
-import AIChat from './pages/AIChat';
 
 // Components
 import PrivateRoute from './components/PrivateRoute';
@@ -87,8 +85,6 @@ function App() {
           <Route path="/brain-dump" element={<BrainDump />} />
           <Route path="/daily-planner" element={<DailyPlanner />} />
           <Route path="/weekly-planner" element={<WeeklyPlanner />} />
-          <Route path="/ai-assistant" element={<AIAssistant />} />
-          <Route path="/ai-chat" element={<AIChat />} />
           <Route path="/workspaces" element={<Workspaces />} />
           <Route path="/workspaces/:id" element={<WorkspaceDetail />} />
           <Route path="/profile" element={<Profile />} />
