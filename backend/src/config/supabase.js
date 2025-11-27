@@ -1,6 +1,7 @@
 const { createClient } = require('@supabase/supabase-js');
 
 let supabase = null;
+let supabaseAuth = null;
 
 const initializeSupabase = () => {
   const supabaseUrl = process.env.SUPABASE_URL;
@@ -35,6 +36,25 @@ const initializeSupabase = () => {
   }
 };
 
+const initializeSupabaseAuth = () => {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.warn('⚠️  Warning: SUPABASE_ANON_KEY not set. Auth features will be limited.');
+    return null;
+  }
+
+  try {
+    supabaseAuth = createClient(supabaseUrl, supabaseAnonKey);
+    console.log('✅ Supabase Auth client initialized');
+    return supabaseAuth;
+  } catch (error) {
+    console.error('❌ Failed to initialize Supabase Auth:', error.message);
+    return null;
+  }
+};
+
 const getSupabase = () => {
   if (!supabase) {
     supabase = initializeSupabase();
@@ -42,7 +62,15 @@ const getSupabase = () => {
   return supabase;
 };
 
+const getSupabaseAuth = () => {
+  if (!supabaseAuth) {
+    supabaseAuth = initializeSupabaseAuth();
+  }
+  return supabaseAuth;
+};
+
 module.exports = {
   initializeSupabase,
-  getSupabase
+  getSupabase,
+  getSupabaseAuth
 };

@@ -2,9 +2,8 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
-const { getSupabase } = require('../config/supabase');
+const { getSupabase, getSupabaseAuth } = require('../config/supabase');
 const { generateToken, protect } = require('../middleware/auth-supabase');
-const { sendPasswordResetEmail } = require('../services/emailService');
 
 // @route   POST /api/auth/register
 // @desc    Register new user
@@ -197,7 +196,7 @@ router.put('/profile', protect, async (req, res) => {
 });
 
 // @route   POST /api/auth/forgot-password
-// @desc    Request password reset
+// @desc    Request password reset via Supabase Auth
 // @access  Public
 router.post('/forgot-password', async (req, res) => {
   try {
@@ -208,11 +207,13 @@ router.post('/forgot-password', async (req, res) => {
     }
 
     const supabase = getSupabase();
+    const supabaseAuth = getSupabaseAuth();
+
     if (!supabase) {
       return res.status(503).json({ message: 'Database not configured' });
     }
 
-    // Find user by email
+    // Find user in our custom users table
     const { data: user, error: findError } = await supabase
       .from('users')
       .select('id, name, email')
@@ -227,12 +228,11 @@ router.post('/forgot-password', async (req, res) => {
       });
     }
 
-    // Generate reset token
+    // Generate reset token and store it
     const resetToken = crypto.randomBytes(32).toString('hex');
     const resetTokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
     const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour
 
-    // Save reset token to user record
     const { error: updateError } = await supabase
       .from('users')
       .update({
@@ -250,19 +250,28 @@ router.post('/forgot-password', async (req, res) => {
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}&email=${encodeURIComponent(email)}`;
 
-    // Send reset email
-    const emailResult = await sendPasswordResetEmail({
-      to: user.email,
-      resetUrl,
-      userName: user.name
-    });
+    // Try to send via Supabase Auth (requires user to exist in Supabase Auth)
+    if (supabaseAuth) {
+      const { error: authError } = await supabaseAuth.auth.resetPasswordForEmail(email, {
+        redirectTo: `${frontendUrl}/reset-password`
+      });
 
-    if (!emailResult.sent) {
-      console.error('Failed to send password reset email:', emailResult.error);
-      // Still return success to prevent email enumeration
+      if (authError) {
+        console.log('Supabase Auth reset failed (user may not exist in Auth):', authError.message);
+        // Fall through - we'll show them the token in development
+      } else {
+        console.log('Password reset email sent via Supabase Auth to:', email);
+        return res.json({
+          message: 'If an account exists with this email, you will receive a password reset link shortly.'
+        });
+      }
     }
 
-    console.log('Password reset email sent to:', email);
+    // If Supabase Auth email didn't work, log the reset URL for development
+    console.log('=== PASSWORD RESET LINK (Dev Mode) ===');
+    console.log('Email:', email);
+    console.log('Reset URL:', resetUrl);
+    console.log('======================================');
 
     res.json({
       message: 'If an account exists with this email, you will receive a password reset link shortly.'
