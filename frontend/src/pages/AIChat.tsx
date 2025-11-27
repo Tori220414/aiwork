@@ -52,16 +52,21 @@ const AIChat: React.FC = () => {
       timestamp: new Date()
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    // Add user message first
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
     setInput('');
     setIsLoading(true);
 
     try {
-      // Build conversation history for context
-      const conversationHistory = messages.slice(-10).map(m => ({
-        role: m.role,
-        content: m.content
-      }));
+      // Build conversation history for Gemini (skip the initial greeting, keep last 20 messages)
+      const conversationHistory = updatedMessages
+        .filter(m => m.id !== '1') // Skip initial greeting
+        .slice(-20)
+        .map(m => ({
+          role: m.role,
+          content: m.content
+        }));
 
       const response = await api.post('/ai/chat', {
         message: text,
