@@ -470,93 +470,58 @@ Guidelines:
   async chat(message, context) {
     const { tasks = [], userName = 'User', conversationHistory = [] } = context;
 
-    const tasksContext = tasks.slice(0, 15).map(t => ({
-      id: t.id || t._id,
-      title: t.title,
-      status: t.status,
-      priority: t.priority,
-      dueDate: t.due_date || t.dueDate,
-      category: t.category
-    }));
+    console.log('=== CHAT REQUEST ===');
+    console.log('User:', userName);
+    console.log('Message:', message);
+    console.log('History length:', conversationHistory.length);
 
-    // Build FULL conversation history
-    const fullConversation = conversationHistory.map(m =>
-      `${m.role === 'user' ? userName : 'Aurora'}: ${m.content}`
-    ).join('\n\n');
+    // Simple task list
+    const taskList = tasks.slice(0, 10).map(t =>
+      `- ${t.title} (${t.status}, ${t.priority})`
+    ).join('\n') || 'No tasks yet';
 
-    const systemPrompt = `You are Aurora, an AI assistant created by Aurora Designs. You're helpful, friendly, knowledgeable, and have a warm personality. You can discuss anything - not just tasks.
+    // Recent conversation (last 4 exchanges)
+    const recentChat = conversationHistory.slice(-8).map(m =>
+      `${m.role === 'user' ? 'Human' : 'Aurora'}: ${m.content}`
+    ).join('\n');
 
-You're chatting with ${userName} in their task management app. The current date is ${new Date().toLocaleDateString()} and time is ${new Date().toLocaleTimeString()}.
+    const prompt = `You are Aurora, a friendly AI assistant. Chat naturally with the user.
 
-${tasksContext.length > 0 ? `\n${userName}'s current tasks:\n${tasksContext.map(t => `• ${t.title} [${t.status}, ${t.priority}]${t.dueDate ? ' - due ' + new Date(t.dueDate).toLocaleDateString() : ''}`).join('\n')}` : ''}
+User: ${userName}
+Time: ${new Date().toLocaleString()}
 
-CONVERSATION SO FAR:
-${fullConversation || '(This is the start of your conversation)'}
+Their tasks:
+${taskList}
 
-${userName}: ${message}
+${recentChat ? `Recent chat:\n${recentChat}\n\n` : ''}Human: ${message}
 
 Aurora:`;
 
     try {
-      console.log('Chat for:', userName, '| Message:', message.substring(0, 50));
+      console.log('Sending to Gemini...');
+      const response = await this.generateContent(prompt);
+      console.log('Got response:', response ? response.substring(0, 100) : 'EMPTY');
 
-      // Get natural response from Gemini
-      const naturalResponse = await this.generateContent(systemPrompt);
-      console.log('Aurora says:', naturalResponse.substring(0, 100));
-
-      // Now check if user wanted to do a task action
-      let action = null;
-      const lowerMessage = message.toLowerCase();
-
-      if (lowerMessage.includes('add a task') || lowerMessage.includes('create a task') ||
-          lowerMessage.includes('remind me to') || lowerMessage.includes('add task')) {
-        // Extract task details
-        const taskPrompt = `Extract task details from: "${message}"
-Return JSON only: {"title":"task title","priority":"low|medium|high","category":"work|personal|meeting|other","dueDate":"YYYY-MM-DD or null"}`;
-
-        try {
-          const taskJson = await this.generateContent(taskPrompt);
-          const match = taskJson.match(/\{[\s\S]*\}/);
-          if (match) {
-            const taskData = JSON.parse(match[0]);
-            if (taskData.title) {
-              action = { type: 'create_task', data: taskData };
-            }
-          }
-        } catch (e) {
-          console.log('Task extraction failed, continuing without action');
-        }
-      } else if (lowerMessage.includes('mark') && (lowerMessage.includes('complete') || lowerMessage.includes('done'))) {
-        // Find matching task
-        const taskMatch = tasksContext.find(t =>
-          lowerMessage.includes(t.title.toLowerCase().substring(0, 20))
-        );
-        if (taskMatch) {
-          action = { type: 'complete_task', data: { taskId: taskMatch.id } };
-        }
+      if (!response || response.trim() === '') {
+        throw new Error('Empty response from Gemini');
       }
-
-      // Generate contextual suggestions
-      const suggestions = [];
-      if (tasksContext.length === 0) {
-        suggestions.push("Help me add a task", "What can you help with?");
-      } else {
-        suggestions.push("What should I focus on?", "Show my priorities");
-      }
-      suggestions.push("Tell me something interesting");
 
       return {
-        response: naturalResponse.trim(),
-        action,
-        suggestions,
+        response: response.trim(),
+        action: null,
+        suggestions: ["Tell me more", "Show my tasks", "Help me plan"],
         mood: "friendly"
       };
     } catch (error) {
-      console.error('Chat error:', error.message);
+      console.error('=== CHAT ERROR ===');
+      console.error('Error type:', error.constructor.name);
+      console.error('Error message:', error.message);
+      console.error('Full error:', JSON.stringify(error, null, 2));
+
       return {
-        response: "I seem to be having a moment - could you try that again?",
+        response: `Hi ${userName}! I'm Aurora. I'm having some technical difficulties right now, but I'm here to help with your tasks. What would you like to do?`,
         action: null,
-        suggestions: ["Let's try again", "Show my tasks"],
+        suggestions: ["Show my tasks", "Add a task", "Help me prioritize"],
         mood: "helpful"
       };
     }
