@@ -470,7 +470,7 @@ Guidelines:
   async chat(message, context) {
     const { tasks = [], userName = 'User', conversationHistory = [] } = context;
 
-    const tasksContext = tasks.slice(0, 20).map(t => ({
+    const tasksContext = tasks.slice(0, 15).map(t => ({
       id: t.id || t._id,
       title: t.title,
       status: t.status,
@@ -479,79 +479,66 @@ Guidelines:
       category: t.category
     }));
 
-    // System instruction for the chat
-    const systemInstruction = `You are Aurora, a friendly and helpful AI assistant for task management. You help users manage their tasks through natural conversation.
+    // Build conversation as text for context
+    const recentChat = conversationHistory.slice(-6).map(m =>
+      `${m.role === 'user' ? 'User' : 'Aurora'}: ${m.content}`
+    ).join('\n');
 
-Current User: ${userName}
-Current Date/Time: ${new Date().toISOString()}
-User's Current Tasks: ${JSON.stringify(tasksContext)}
+    const prompt = `You are Aurora, a friendly AI assistant for task management at Aurora Tasks app.
 
-You can:
-1. Answer questions about tasks naturally
-2. Create tasks when asked ("Add a task to...", "Remind me to...")
-3. Update/complete tasks ("Mark X as done", "Change priority of...")
-4. Give productivity advice and motivation
-5. Have general friendly conversation
+USER: ${userName}
+DATE: ${new Date().toLocaleDateString()}
+TIME: ${new Date().toLocaleTimeString()}
 
-IMPORTANT: Your response must be valid JSON with this structure:
-{
-  "response": "Your natural conversational response",
-  "action": null or {"type": "create_task|complete_task|update_task|delete_task|list_tasks", "data": {...}},
-  "suggestions": ["2-3 quick reply options"],
-  "mood": "helpful|encouraging|focused|casual"
-}
+USER'S TASKS:
+${tasksContext.length > 0 ? tasksContext.map(t => `- [${t.status}] ${t.title} (${t.priority} priority)${t.dueDate ? ', due: ' + t.dueDate : ''}`).join('\n') : '(No tasks yet)'}
 
-For create_task action data: {title, description, priority, category, dueDate, estimatedTime}
-For complete_task/update_task/delete_task: {taskId, updates}
+${recentChat ? `RECENT CONVERSATION:\n${recentChat}\n` : ''}
+USER NOW SAYS: "${message}"
 
-Be conversational, warm, and helpful. Use the user's name occasionally. Remember our conversation context.`;
+Respond naturally as Aurora. You can create tasks, mark them complete, give advice, or just chat.
+
+Return ONLY valid JSON (no markdown):
+{"response":"your friendly reply","action":null,"suggestions":["suggestion1","suggestion2"],"mood":"helpful"}
+
+For task actions use:
+- Create: {"action":{"type":"create_task","data":{"title":"...","priority":"medium","category":"work"}}}
+- Complete: {"action":{"type":"complete_task","data":{"taskId":"..."}}}
+
+Keep responses concise and helpful.`;
 
     try {
-      const model = getGeminiModel('gemini-2.0-flash');
+      console.log('Chat request for user:', userName, 'message:', message.substring(0, 50));
 
-      // Convert conversation history to Gemini format
-      const geminiHistory = conversationHistory.map(m => ({
-        role: m.role === 'user' ? 'user' : 'model',
-        parts: [{ text: m.role === 'user' ? m.content : JSON.stringify({
-          response: m.content,
-          action: null,
-          suggestions: [],
-          mood: 'helpful'
-        })}]
-      }));
-
-      // Start a chat with history
-      const chat = model.startChat({
-        history: geminiHistory,
-        generationConfig: {
-          temperature: 0.8,
-          topK: 40,
-          topP: 0.95,
-          maxOutputTokens: 1024,
-        },
-      });
-
-      // Send message with system context
-      const prompt = geminiHistory.length === 0
-        ? `${systemInstruction}\n\nUser says: "${message}"`
-        : `Context update - User's tasks: ${JSON.stringify(tasksContext)}\n\nUser says: "${message}"\n\nRespond as JSON.`;
-
-      const result = await chat.sendMessage(prompt);
-      const response = result.response.text();
+      const response = await this.generateContent(prompt);
+      console.log('Gemini response:', response.substring(0, 200));
 
       let jsonText = response.trim();
       jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '');
 
       const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        return JSON.parse(jsonMatch[0]);
+        const parsed = JSON.parse(jsonMatch[0]);
+        return {
+          response: parsed.response || "I'm here to help!",
+          action: parsed.action || null,
+          suggestions: parsed.suggestions || ["Show my tasks", "Add a task", "What should I do?"],
+          mood: parsed.mood || "helpful"
+        };
       }
 
-      return JSON.parse(jsonText);
-    } catch (error) {
-      console.error('Chat error:', error);
+      // If no JSON found, return the text as response
       return {
-        response: "I'm having a moment - could you say that again?",
+        response: jsonText || "I'm here to help with your tasks!",
+        action: null,
+        suggestions: ["Show my tasks", "Add a task", "Help me prioritize"],
+        mood: "helpful"
+      };
+    } catch (error) {
+      console.error('Chat error:', error.message);
+      console.error('Full error:', error);
+      return {
+        response: "Sorry, I had trouble processing that. Could you try again?",
         action: null,
         suggestions: ["Show my tasks", "Help me prioritize", "What should I work on?"],
         mood: "helpful"
