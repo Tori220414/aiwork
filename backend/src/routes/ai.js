@@ -439,4 +439,160 @@ router.post('/suggest-tasks', async (req, res) => {
   }
 });
 
+// @route   POST /api/ai/chat
+// @desc    AI chat assistant for conversational task management
+// @access  Private
+router.post('/chat', async (req, res) => {
+  try {
+    const { message, conversationHistory = [] } = req.body;
+    const userId = req.user._id || req.user.id;
+    const userName = req.user.name || 'User';
+    const supabase = getSupabase();
+
+    if (!supabase) {
+      return res.status(503).json({ message: 'Database not configured' });
+    }
+
+    if (!message || message.trim().length === 0) {
+      return res.status(400).json({ message: 'Message is required' });
+    }
+
+    // Get user's tasks for context
+    const { data: tasks, error: tasksError } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (tasksError) {
+      console.error('Chat tasks fetch error:', tasksError);
+    }
+
+    // Get AI response
+    const chatResponse = await geminiService.chat(message, {
+      tasks: tasks || [],
+      userName,
+      conversationHistory
+    });
+
+    // Execute action if any
+    let actionResult = null;
+    if (chatResponse.action && chatResponse.action.type !== 'none') {
+      const { type, data } = chatResponse.action;
+
+      switch (type) {
+        case 'create_task':
+          if (data && data.title) {
+            const newTask = {
+              user_id: userId,
+              title: data.title,
+              description: data.description || '',
+              priority: data.priority || 'medium',
+              status: 'pending',
+              category: data.category || 'work',
+              ai_generated: true,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            };
+
+            if (data.dueDate) newTask.due_date = data.dueDate;
+            if (data.estimatedTime) newTask.estimated_time = data.estimatedTime;
+
+            const { data: createdTask, error: createError } = await supabase
+              .from('tasks')
+              .insert([newTask])
+              .select()
+              .single();
+
+            if (!createError && createdTask) {
+              actionResult = { type: 'task_created', task: { ...createdTask, _id: createdTask.id } };
+            }
+          }
+          break;
+
+        case 'complete_task':
+          if (data && data.taskId) {
+            const { data: updatedTask, error: updateError } = await supabase
+              .from('tasks')
+              .update({
+                status: 'completed',
+                completed_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', data.taskId)
+              .eq('user_id', userId)
+              .select()
+              .single();
+
+            if (!updateError && updatedTask) {
+              actionResult = { type: 'task_completed', task: { ...updatedTask, _id: updatedTask.id } };
+            }
+          }
+          break;
+
+        case 'update_task':
+          if (data && data.taskId && data.updates) {
+            const updates = { ...data.updates, updated_at: new Date().toISOString() };
+
+            // Convert camelCase to snake_case
+            if (updates.dueDate) {
+              updates.due_date = updates.dueDate;
+              delete updates.dueDate;
+            }
+            if (updates.estimatedTime) {
+              updates.estimated_time = updates.estimatedTime;
+              delete updates.estimatedTime;
+            }
+
+            const { data: updatedTask, error: updateError } = await supabase
+              .from('tasks')
+              .update(updates)
+              .eq('id', data.taskId)
+              .eq('user_id', userId)
+              .select()
+              .single();
+
+            if (!updateError && updatedTask) {
+              actionResult = { type: 'task_updated', task: { ...updatedTask, _id: updatedTask.id } };
+            }
+          }
+          break;
+
+        case 'delete_task':
+          if (data && data.taskId) {
+            const { error: deleteError } = await supabase
+              .from('tasks')
+              .delete()
+              .eq('id', data.taskId)
+              .eq('user_id', userId);
+
+            if (!deleteError) {
+              actionResult = { type: 'task_deleted', taskId: data.taskId };
+            }
+          }
+          break;
+
+        case 'list_tasks':
+          actionResult = { type: 'tasks_listed', tasks: (tasks || []).map(t => ({ ...t, _id: t.id })) };
+          break;
+      }
+    }
+
+    res.json({
+      response: chatResponse.response,
+      action: actionResult,
+      suggestions: chatResponse.suggestions || [],
+      mood: chatResponse.mood || 'helpful'
+    });
+
+  } catch (error) {
+    console.error('AI Chat error:', error);
+    res.status(500).json({
+      message: 'Failed to process chat message',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;

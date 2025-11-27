@@ -466,6 +466,99 @@ Guidelines:
       return null;
     }
   }
+
+  async chat(message, context) {
+    const { tasks = [], userName = 'User', conversationHistory = [] } = context;
+
+    // Build conversation context
+    const historyText = conversationHistory.slice(-10).map(m =>
+      `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`
+    ).join('\n');
+
+    const tasksContext = tasks.slice(0, 20).map(t => ({
+      id: t.id || t._id,
+      title: t.title,
+      status: t.status,
+      priority: t.priority,
+      dueDate: t.due_date || t.dueDate,
+      category: t.category
+    }));
+
+    const prompt = `
+You are Aurora, an AI assistant for task management. You help users manage their tasks through natural conversation.
+
+Current User: ${userName}
+Current Date/Time: ${new Date().toISOString()}
+User's Tasks (${tasksContext.length} tasks): ${JSON.stringify(tasksContext)}
+
+Recent Conversation:
+${historyText || '(New conversation)'}
+
+User's Message: "${message}"
+
+Respond naturally and helpfully. You can:
+1. Answer questions about tasks ("What tasks do I have today?", "What's my highest priority?")
+2. Create tasks ("Add a task to call John tomorrow", "Remind me to buy groceries")
+3. Update tasks ("Mark the call John task as complete", "Change priority of X to high")
+4. Provide suggestions ("What should I work on?", "Help me prioritize")
+5. Give productivity tips and motivation
+
+Return as valid JSON (no markdown):
+{
+  "response": "Your conversational response to the user",
+  "action": null or {
+    "type": "create_task|update_task|complete_task|delete_task|list_tasks|none",
+    "data": {
+      // For create_task:
+      "title": "Task title",
+      "description": "Optional description",
+      "priority": "low|medium|high|urgent",
+      "category": "work|personal|meeting|other",
+      "dueDate": "2025-01-15 or null",
+      "estimatedTime": 30
+
+      // For update_task/complete_task/delete_task:
+      "taskId": "id of task to modify",
+      "updates": { "field": "value" }
+
+      // For list_tasks: (no extra data needed)
+    }
+  },
+  "suggestions": ["Optional quick reply suggestions for user"],
+  "mood": "helpful|encouraging|focused|casual"
+}
+
+Guidelines:
+- Be friendly, concise, and helpful
+- If user wants to create a task, extract all relevant details
+- If unsure which task they mean, ask for clarification
+- For productivity questions, give actionable advice
+- Match the user's tone (casual vs formal)
+- Include 2-3 quick reply suggestions when appropriate
+`;
+
+    try {
+      const response = await this.generateContent(prompt);
+
+      let jsonText = response.trim();
+      jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+
+      const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        return JSON.parse(jsonMatch[0]);
+      }
+
+      return JSON.parse(jsonText);
+    } catch (error) {
+      console.error('Chat error:', error);
+      return {
+        response: "I'm having trouble processing that. Could you try rephrasing?",
+        action: null,
+        suggestions: ["Show my tasks", "Help me prioritize", "What should I work on?"],
+        mood: "helpful"
+      };
+    }
+  }
 }
 
 module.exports = new GeminiService();

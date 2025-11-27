@@ -24,6 +24,7 @@ import OutlookCallback from './pages/OutlookCallback';
 import GoogleCallback from './pages/GoogleCallback';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
+import AIChat from './pages/AIChat';
 
 // Components
 import PrivateRoute from './components/PrivateRoute';
@@ -87,6 +88,7 @@ function App() {
           <Route path="/daily-planner" element={<DailyPlanner />} />
           <Route path="/weekly-planner" element={<WeeklyPlanner />} />
           <Route path="/ai-assistant" element={<AIAssistant />} />
+          <Route path="/ai-chat" element={<AIChat />} />
           <Route path="/workspaces" element={<Workspaces />} />
           <Route path="/workspaces/:id" element={<WorkspaceDetail />} />
           <Route path="/profile" element={<Profile />} />
