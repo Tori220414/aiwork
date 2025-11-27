@@ -1,8 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const { getSupabase } = require('../config/supabase');
 const { generateToken, protect } = require('../middleware/auth-supabase');
+const { sendPasswordResetEmail } = require('../services/emailService');
 
 // @route   POST /api/auth/register
 // @desc    Register new user
@@ -191,6 +193,217 @@ router.put('/profile', protect, async (req, res) => {
   } catch (error) {
     console.error('Update profile error:', error);
     res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @route   POST /api/auth/forgot-password
+// @desc    Request password reset
+// @access  Public
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: 'Please provide your email address' });
+    }
+
+    const supabase = getSupabase();
+    if (!supabase) {
+      return res.status(503).json({ message: 'Database not configured' });
+    }
+
+    // Find user by email
+    const { data: user, error: findError } = await supabase
+      .from('users')
+      .select('id, name, email')
+      .eq('email', email.toLowerCase())
+      .single();
+
+    // Always return success message to prevent email enumeration
+    if (findError || !user) {
+      console.log('Password reset requested for non-existent email:', email);
+      return res.json({
+        message: 'If an account exists with this email, you will receive a password reset link shortly.'
+      });
+    }
+
+    // Generate reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
+    const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour
+
+    // Save reset token to user record
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({
+        reset_token: resetTokenHash,
+        reset_token_expires: resetTokenExpiry
+      })
+      .eq('id', user.id);
+
+    if (updateError) {
+      console.error('Error saving reset token:', updateError);
+      return res.status(500).json({ message: 'Failed to process password reset request' });
+    }
+
+    // Build reset URL
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}&email=${encodeURIComponent(email)}`;
+
+    // Send reset email
+    const emailResult = await sendPasswordResetEmail({
+      to: user.email,
+      resetUrl,
+      userName: user.name
+    });
+
+    if (!emailResult.sent) {
+      console.error('Failed to send password reset email:', emailResult.error);
+      // Still return success to prevent email enumeration
+    }
+
+    console.log('Password reset email sent to:', email);
+
+    res.json({
+      message: 'If an account exists with this email, you will receive a password reset link shortly.'
+    });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({ message: 'Server error processing password reset request' });
+  }
+});
+
+// @route   POST /api/auth/reset-password
+// @desc    Reset password with token
+// @access  Public
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { email, token, newPassword } = req.body;
+
+    if (!email || !token || !newPassword) {
+      return res.status(400).json({ message: 'Please provide email, token, and new password' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters long' });
+    }
+
+    const supabase = getSupabase();
+    if (!supabase) {
+      return res.status(503).json({ message: 'Database not configured' });
+    }
+
+    // Hash the provided token to compare with stored hash
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    // Find user with valid reset token
+    const { data: user, error: findError } = await supabase
+      .from('users')
+      .select('id, email, reset_token, reset_token_expires')
+      .eq('email', email.toLowerCase())
+      .single();
+
+    if (findError || !user) {
+      return res.status(400).json({ message: 'Invalid or expired reset link' });
+    }
+
+    // Verify token matches and hasn't expired
+    if (user.reset_token !== tokenHash) {
+      return res.status(400).json({ message: 'Invalid or expired reset link' });
+    }
+
+    if (new Date(user.reset_token_expires) < new Date()) {
+      return res.status(400).json({ message: 'Reset link has expired. Please request a new one.' });
+    }
+
+    // Hash new password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    // Update password and clear reset token
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({
+        password: hashedPassword,
+        reset_token: null,
+        reset_token_expires: null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', user.id);
+
+    if (updateError) {
+      console.error('Error updating password:', updateError);
+      return res.status(500).json({ message: 'Failed to reset password' });
+    }
+
+    console.log('Password reset successful for:', email);
+
+    res.json({ message: 'Password reset successful. You can now log in with your new password.' });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ message: 'Server error resetting password' });
+  }
+});
+
+// @route   PUT /api/auth/change-password
+// @desc    Change password (for logged in users)
+// @access  Private
+router.put('/change-password', protect, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Please provide current and new password' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: 'New password must be at least 6 characters long' });
+    }
+
+    const supabase = getSupabase();
+    if (!supabase) {
+      return res.status(503).json({ message: 'Database not configured' });
+    }
+
+    // Get user with password
+    const { data: user, error: findError } = await supabase
+      .from('users')
+      .select('id, password')
+      .eq('id', req.user._id || req.user.id)
+      .single();
+
+    if (findError || !user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Verify current password
+    const isPasswordMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isPasswordMatch) {
+      return res.status(401).json({ message: 'Current password is incorrect' });
+    }
+
+    // Hash new password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    // Update password
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({
+        password: hashedPassword,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', user.id);
+
+    if (updateError) {
+      console.error('Error updating password:', updateError);
+      return res.status(500).json({ message: 'Failed to change password' });
+    }
+
+    res.json({ message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({ message: 'Server error changing password' });
   }
 });
 

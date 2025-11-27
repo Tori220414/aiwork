@@ -22,6 +22,8 @@ import DailyPlanner from './pages/DailyPlanner';
 import CalendarSettings from './pages/CalendarSettings';
 import OutlookCallback from './pages/OutlookCallback';
 import GoogleCallback from './pages/GoogleCallback';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 
 // Components
 import PrivateRoute from './components/PrivateRoute';
@@ -68,6 +70,12 @@ function App() {
         } />
         <Route path="/register" element={
           isAuthenticated ? <Navigate to="/dashboard" /> : <Register />
+        } />
+        <Route path="/forgot-password" element={
+          isAuthenticated ? <Navigate to="/dashboard" /> : <ForgotPassword />
+        } />
+        <Route path="/reset-password" element={
+          isAuthenticated ? <Navigate to="/dashboard" /> : <ResetPassword />
         } />
         <Route path="/auth/outlook/callback" element={<OutlookCallback />} />
         <Route path="/auth/google/callback" element={<GoogleCallback />} />
