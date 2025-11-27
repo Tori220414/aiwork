@@ -19,15 +19,7 @@ interface Message {
 }
 
 const AIChat: React.FC = () => {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      role: 'assistant',
-      content: "Hi! I'm Aurora, your AI task assistant. I can help you manage your tasks through conversation. Try saying things like:\n\n• \"What tasks do I have today?\"\n• \"Add a task to review the budget by Friday\"\n• \"What should I work on next?\"\n• \"Mark my highest priority task as complete\"\n\nHow can I help you?",
-      timestamp: new Date(),
-      suggestions: ['Show my tasks', 'What should I work on?', 'Add a new task']
-    }
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -40,6 +32,41 @@ const AIChat: React.FC = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Start conversation on mount
+  useEffect(() => {
+    const startConversation = async () => {
+      setIsLoading(true);
+      try {
+        const response = await api.post('/ai/chat', {
+          message: "Hi Aurora!",
+          conversationHistory: []
+        });
+
+        const greeting: Message = {
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: response.data.response,
+          timestamp: new Date(),
+          suggestions: response.data.suggestions,
+          mood: response.data.mood
+        };
+        setMessages([greeting]);
+      } catch (error) {
+        setMessages([{
+          id: '1',
+          role: 'assistant',
+          content: "Hi! I'm Aurora, your AI assistant. How can I help you today?",
+          timestamp: new Date(),
+          suggestions: ['Show my tasks', 'Help me get organized', 'Just chat']
+        }]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    startConversation();
+  }, []);
 
   const sendMessage = async (messageText?: string) => {
     const text = messageText || input.trim();
@@ -59,14 +86,11 @@ const AIChat: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // Build conversation history for Gemini (skip the initial greeting, keep last 20 messages)
-      const conversationHistory = updatedMessages
-        .filter(m => m.id !== '1') // Skip initial greeting
-        .slice(-20)
-        .map(m => ({
-          role: m.role,
-          content: m.content
-        }));
+      // Build FULL conversation history for context
+      const conversationHistory = updatedMessages.map(m => ({
+        role: m.role,
+        content: m.content
+      }));
 
       const response = await api.post('/ai/chat', {
         message: text,
@@ -126,14 +150,32 @@ const AIChat: React.FC = () => {
     sendMessage(suggestion);
   };
 
-  const clearChat = () => {
-    setMessages([{
-      id: '1',
-      role: 'assistant',
-      content: "Chat cleared! How can I help you with your tasks?",
-      timestamp: new Date(),
-      suggestions: ['Show my tasks', 'What should I work on?', 'Add a new task']
-    }]);
+  const clearChat = async () => {
+    setMessages([]);
+    setIsLoading(true);
+    try {
+      const response = await api.post('/ai/chat', {
+        message: "Let's start fresh!",
+        conversationHistory: []
+      });
+      setMessages([{
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: response.data.response,
+        timestamp: new Date(),
+        suggestions: response.data.suggestions
+      }]);
+    } catch (error) {
+      setMessages([{
+        id: '1',
+        role: 'assistant',
+        content: "Fresh start! What would you like to talk about?",
+        timestamp: new Date(),
+        suggestions: ['Show my tasks', 'Help me plan my day', 'Just chat']
+      }]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const renderActionBadge = (action: Message['action']) => {
